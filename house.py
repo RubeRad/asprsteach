@@ -10,7 +10,7 @@ BLU=(255,0,0)
 YLW=(0,255,255)
 WHT=(255,255,255)
 BLK=(0,0,0)
-
+BRN=(60,86,132)
 
 
 def spew(fname, contents):
@@ -30,12 +30,11 @@ def mark_origin(img, cam):
     c = cam @ np.array([[0],[0],[0],[1]])
     cv2.circle(img, pt(img,c), 3, (255,255,255))
 
-def project_gline(img, cam, gp0, gp1, color, fname='dbg.png'):
+def project_gline(img, cam, gp0, gp1, color, wid=2):
     ip0 = cam @ gp0
     ip1 = cam @ gp1
+    cv2.line(img, pt(img,ip0), pt(img,ip1), color, wid)
 
-    cv2.line(img, pt(img,ip0), pt(img,ip1), color, 4)
-    cv2.imwrite(fname, img)
 
 
 def buildK(f, cx, cy):
@@ -62,6 +61,13 @@ def buildRt(az, ti, sw, tx, ty, tz):
     return(np.hstack((R,t)))
 
 
+class Primitive():
+   def __init__(s, gpt0, gpt1, color, typ):
+      s.gp0 = gpt0
+      s.gp1 = gpt1
+      s.col = color
+      s.typ = typ
+
 
 class HouseWriter():
     def __init__(s, fname='house.avi', width=1920, height=1080):
@@ -70,16 +76,16 @@ class HouseWriter():
        fourcc = cv2.VideoWriter_fourcc(*'XVID')
        s.writer = cv2.VideoWriter(fname, fourcc, 15, (width,height))
 
-       s.foc = 100
+       s.foc = 200
        s.ppx = s.imgw//2
        s.ppy = s.imgh//2
        s.K = buildK(s.foc, s.ppx, s.ppy)
 
-       s.azi = 10
-       s.tlt = 90
+       s.azi = 25
+       s.tlt = 70
        s.swg = 180
        s.tx = 0
-       s.ty = -1
+       s.ty = -.9
        s.tz = 1
        s.Rt = buildRt(s.azi, s.tlt, s.swg, s.tx, s.ty, s.tz)
        
@@ -94,14 +100,46 @@ class HouseWriter():
        s.gp101 = np.array([[1], [0], [1], [1]])
        s.gp110 = np.array([[1], [1], [0], [1]])
        s.gp111 = np.array([[1], [1], [1], [1]])
-       s.gprf = np.array([[.5], [1.5], [0], [1]])
-       s.gprb = np.array([[.5], [1.5], [1], [1]])
+       s.gprf = np.array([[.5], [1.5], [.5], [1]])
+       s.gprb = np.array([[.5], [1.5], [.5], [1]])
 
-       # 12 lines for the cube (and 5 more for the roof)
-       s.xlines = [(s.gp000, s.gp100), (s.gp001, s.gp101), (s.gp010, s.gp110), (s.gp011, s.gp111)]
-       s.ylines = [(s.gp000, s.gp010), (s.gp001, s.gp011), (s.gp100, s.gp110), (s.gp101, s.gp111)]
-       s.zlines = [(s.gp000, s.gp001), (s.gp010, s.gp011), (s.gp100, s.gp101), (s.gp110, s.gp111), (s.gprf, s.gprb)]
-       s.dlines = [(s.gprf, s.gp010), (s.gprf, s.gp110), (s.gprb, s.gp011), (s.gprb, s.gp111)]
+       # build the primitives out of the vertices
+       # layered back to front so it looks good
+       s.prims = []
+       # back wall and roof
+       s.prims.append(Primitive(s.gp001,s.gp101,RED,'X'))
+       s.prims.append(Primitive(s.gp011,s.gp111,RED,'X'))
+       s.prims.append(Primitive(s.gp011,s.gp001,GRN,'Y'))
+       s.prims.append(Primitive(s.gp111,s.gp101,GRN,'Y'))
+       # right wall
+       s.prims.append(Primitive(s.gp100,s.gp101,BLU,'Z'))
+       s.prims.append(Primitive(s.gp110,s.gp111,BLU,'Z'))
+       s.prims.append(Primitive(s.gp110,s.gp100,GRN,'Y'))
+       # left wall
+       s.prims.append(Primitive(s.gp000,s.gp001,BLU,'Z'))
+       s.prims.append(Primitive(s.gp010,s.gp011,BLU,'Z'))
+       s.prims.append(Primitive(s.gp010,s.gp000,GRN,'Y'))
+       # front
+       s.prims.append(Primitive(s.gp000,s.gp100,RED,'X'))
+       s.prims.append(Primitive(s.gp010,s.gp110,RED,'X'))
+       # roof
+       s.prims.append(Primitive(s.gp011,s.gprb, YLW,'D'))
+       s.prims.append(Primitive(s.gp111,s.gprb, YLW,'D'))
+       s.prims.append(Primitive(s.gp010,s.gprf, YLW,'D'))
+       s.prims.append(Primitive(s.gp110,s.gprf, YLW,'D'))
+       #s.prims.append(Primitive(s.gprb, s.gprf, BLU,'Z'))
+
+       s.grounds = []
+       lo=-1
+       hi=2
+       for xz in range(lo,hi+1):
+          s.grounds.append(Primitive(np.array([[xz],[0],[lo],[1]]),
+                                     np.array([[xz],[0],[100],[1]]),BRN,'G'))
+          s.grounds.append(Primitive(np.array([[lo],[0],[xz],[1]]),
+                                     np.array([[100],[0],[xz],[1]]),BRN,'G'))
+       # this is not workin out
+       s.grounds = []
+
 
 
     def updateK(s, f, ppx, ppy):
@@ -120,29 +158,38 @@ class HouseWriter():
        posz = z if z is not None else s.tz;  s.tz  = posz
        s.Rt = buildRt(azim, tilt, swng, posx, posy, posz)
        return s.Rt
-        
 
-    def house(s, image_in=None,
+
+    def draw_prim(s, img, p, wid=2, extend=1):
+       project_gline(img, s.cam, p.gp0, p.gp1, p.col, wid=wid)
+       if extend>1 and p.typ != 'D':
+          gp = p.gp0 + (p.gp1-p.gp0)*extend
+          project_gline(img, s.cam, p.gp0, gp, p.col, wid=1)
+
+
+    def house(s, image_in=None, fat=None, extend=1,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
-              dump=False, show=False, write=False):
+              dump=False, show=False, write=True):
        if image_in is None:
            img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
+           img[:] = WHT
        else:
            img = image_in
        s.updateK(f, None, None)
        s.updateRt(azim, tilt, swng, tx, ty, tz)
        s.cam = s.K @ s.Rt
 
-       for xx in s.xlines: project_gline(img, s.cam, xx[0], xx[1], RED)
-       for yy in s.ylines: project_gline(img, s.cam, yy[0], yy[1], GRN)
-       for zz in s.zlines: project_gline(img, s.cam, zz[0], zz[1], BLU)
-       for dd in s.dlines: project_gline(img, s.cam, dd[0], dd[1], YLW)
+       for p in s.prims:
+          w = 4 if fat is not None and fat==p.typ else 2
+          s.draw_prim(img, p, w, extend)
 
-       mark_origin(img, s.cam)
+       #mark_origin(img, s.cam)
        if dump:   cv2.imwrite('dbg.png', img)
        if show:   cv2.imshow('House', img)
        if write:  s.writer.write(img)
+
+       print('.', end='')
 
 
 
@@ -159,23 +206,28 @@ class HouseWriter():
 
 
 
-with HouseWriter(width=720, height=480) as hw:
-    print('A',end='')
-    for a in range(40):
-        print('.',end='')
-        hw.house(azim=a, write=True)
+hw = HouseWriter(width=720, height=480)
 
-    print('\nT',end='')
-    for t in range(90,60,-1):
-        print('.',end='')
-        hw.house(tilt=t, write=True)
+hw.updateRt()
 
-    print('\nZ',end='')
-    for zi in range(20):
-        print('.',end='')
-        hw.house(tz=1+zi/10, write=True)
 
-    print('\nF',end='')
-    for f in range(100,50,-10):
-        print('.',end='')
-        hw.house(f=f, write=True)
+print('Still',end='')
+for a in range(30): hw.house()
+
+print('\nFats',end='')
+for fat_ax in ['X','Z','Y','D']:
+   for a in range(15): hw.house(fat=fat_ax)
+
+print('\nStill',end='')
+for a in range(30): hw.house()
+
+print('\nExtend',end='')
+for e in np.arange(1.0, 20.0, 0.2): hw.house(extend=e)
+
+
+
+
+
+
+
+hw.writer.release()
