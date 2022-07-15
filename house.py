@@ -65,6 +65,7 @@ class Primitive():
    def __init__(s, gpt0, gpt1, color, typ):
       s.gp0 = gpt0
       s.gp1 = gpt1
+      s.vp  = None # fill in vanishing point when camera is known
       s.col = color
       s.typ = typ
 
@@ -159,15 +160,54 @@ class HouseWriter():
        s.Rt = buildRt(azim, tilt, swng, posx, posy, posz)
        return s.Rt
 
+    def project(s, gp, flip=False):
+       ip = s.cam @ gp
+       ip *= 1.0/ip[2,0]
+       ip[1,0] = s.imgh - ip[1,0] if flip else ip[1,0]
+       return (ip[0,0], ip[1,0])
+
+    def updateVP(s):
+       for t in ['X','Y','Z']:
+          # Find two primitives of type t
+          p0 = p1 = None
+          for p in s.prims:
+             if p.typ == t:
+                if   p0 is None: p0 = p
+                elif p1 is None: p1 = p
+          # VP is intersection of p0 and p1 (as projected)
+          ip00  = s.project(p0.gp0)
+          ip01  = s.project(p0.gp1)
+          rise0 = ip01[1]-ip00[1]
+          run0  = ip01[0]-ip00[0]
+          ip10  = s.project(p1.gp0)
+          ip11  = s.project(p1.gp1)
+          rise1 = ip11[1] - ip10[1]
+          run1  = ip11[0] - ip10[0]
+
+          A = np.array([[rise0, -run0],
+                        [rise1, -run1]])
+          rhs = np.array([[rise0*ip00[0] - run0*ip00[1]],
+                          [rise1*ip10[0] - run1*ip10[1]]])
+          vp = np.linalg.solve(A, rhs)
+
+          for p in s.prims:
+             if p.typ==t:
+                p.vp = vp
+
+
 
     def draw_prim(s, img, p, wid=2, extend=1):
        project_gline(img, s.cam, p.gp0, p.gp1, p.col, wid=wid)
-       if extend>1 and p.typ != 'D':
-          gp = p.gp0 + (p.gp1-p.gp0)*extend
-          project_gline(img, s.cam, p.gp0, gp, p.col, wid=1)
+       if extend>0 and p.typ != 'D':
+          ip3 = s.cam@p.gp1
+          ip2 = ip3[0:2,:] / ip3[2,0]
+          vp  = p.vp
+          ept = extend*vp + (1-extend)*ip2
+          cv2.line(img, pt(img, ip2), pt(img, ept), p.col, 1)
 
 
-    def house(s, image_in=None, fat=None, extend=1,
+
+    def house(s, image_in=None, fat=None, extend=0,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
               dump=False, show=False, write=True):
@@ -179,6 +219,8 @@ class HouseWriter():
        s.updateK(f, None, None)
        s.updateRt(azim, tilt, swng, tx, ty, tz)
        s.cam = s.K @ s.Rt
+       if extend:
+          s.updateVP()
 
        for p in s.prims:
           w = 4 if fat is not None and fat==p.typ else 2
@@ -222,7 +264,9 @@ print('\nStill',end='')
 for a in range(30): hw.house()
 
 print('\nExtend',end='')
-for e in np.arange(1.0, 20.0, 0.2): hw.house(extend=e)
+for e in np.arange(0.0, 1.01, 0.05):
+   hw.house(extend=e)
+for a in range(20): hw.house(extend=1)
 
 
 
