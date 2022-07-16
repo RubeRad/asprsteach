@@ -18,22 +18,36 @@ def spew(fname, contents):
     f.write(contents)
     f.close()
 
-def pt(img, x, y=None):
-    if y is None:
+def pt(img, x, y=None, scl=1.0):
+    h,w = img.shape[0:2]
+    col = x
+    row = y
+    if row is None:
         if x.shape[0]>2:
-            x[0,0] /= x[2,0]
-            x[1,0] /= x[2,0]
-        return (int(np.round(x[0,0])), img.shape[0]-int(np.round(x[1,0])))
-    return (int(np.round(x)), img.shape[0]-int(np.round(y)))
+            col = x[0,0] / x[2,0]
+            row = x[1,0] / x[2,0]
+        elif x.shape[0]==2:
+            col = x[0,0]
+            row = x[1,0]
+
+    if row is None:
+       stophere=1
+
+    dx = col - w//2
+    dy = row - h//2
+    dx *= scl
+    dy *= scl
+
+    return (int(np.round(w//2 + dx)), int(np.round(h//2 - dy)))
 
 def mark_origin(img, cam):
     c = cam @ np.array([[0],[0],[0],[1]])
     cv2.circle(img, pt(img,c), 3, (255,255,255))
 
-def project_gline(img, cam, gp0, gp1, color, wid=2):
+def project_gline(img, cam, gp0, gp1, color, wid=2, scl=1.0):
     ip0 = cam @ gp0
     ip1 = cam @ gp1
-    cv2.line(img, pt(img,ip0), pt(img,ip1), color, wid)
+    cv2.line(img, pt(img,ip0,scl=scl), pt(img,ip1,scl=scl), color, wid)
 
 
 
@@ -61,13 +75,61 @@ def buildRt(az, ti, sw, tx, ty, tz):
     return(np.hstack((R,t)))
 
 
+def scale_ip(img, x, y, s, flipy=False):
+   h,w = img.shape[0:2]
+   dx = x - w//2
+   dy = y - h//2
+   if flipy:
+      return (w//2 + dx*s, h//2 - dy*s)
+   else:
+      return (w//2 + dx*s, h//2 + dy*s)
+
+
 class Primitive():
+   def __init__(s, typ, color):
+      s.col = color
+      s.typ = typ
+
+   def draw(s, img, cam, wid=1, extend=False, scl=1.0):
+      pass
+
+
+class ImgPoly(Primitive):
+   def __init__(s, points, color):
+      super().__init__('IPOLY', color)
+      s.verts = points
+
+   def draw(s, img, cam, wid=1, extend=False, scl=1.0):
+      sverts = []
+      for v in s.verts:
+         sverts.append(scale_ip(img, v[0], v[1], scl))
+      vs = [np.array(sverts, np.int32).reshape((-1,1,2))]
+      cv2.fillPoly(img, vs, s.col)
+
+
+class Line(Primitive):
    def __init__(s, gpt0, gpt1, color, typ):
+      super().__init__(typ, color)
       s.gp0 = gpt0
       s.gp1 = gpt1
       s.vp  = None # fill in vanishing point when camera is known
-      s.col = color
-      s.typ = typ
+
+   def draw(s, img, cam, wid=1, extend=False, scl=1.0):
+      # House line may be thicker width
+      project_gline(img, cam, s.gp0, s.gp1, s.col, wid=wid, scl=scl)
+
+      # Extended line toward vanishing point is always wid=1
+      if extend > 0 and s.typ != 'D':
+         ip3 = cam @ s.gp1
+         ip2 = ip3[0:2, :] / ip3[2, 0]
+         vp = s.vp
+         ept = extend * vp + (1 - extend) * ip2
+
+         ip2 = np.array(scale_ip(img, ip2[0,0], ip2[1,0], scl)).reshape((2,1))
+         ept = np.array(scale_ip(img, ept[0,0], ept[1,0], scl)).reshape((2,1))
+
+         cv2.line(img, pt(img, ip2), pt(img, ept), s.col, 1)
+
 
 
 class HouseWriter():
@@ -107,36 +169,43 @@ class HouseWriter():
        # build the primitives out of the vertices
        # layered back to front so it looks good
        s.prims = []
+
+       # background rectangles
+       b = 10000
+       s.prims.append(ImgPoly([[-b,-b],[b,-b],[b,b],[-b,b]],BLK))
+       w=s.imgw
+       h=s.imgh
+       s.prims.append(ImgPoly([[0,0],[w,0],[w,h],[0,h]],WHT))
        # back wall and roof
-       s.prims.append(Primitive(s.gp001,s.gp101,RED,'X'))
-       s.prims.append(Primitive(s.gp011,s.gp111,RED,'X'))
-       s.prims.append(Primitive(s.gp011,s.gp001,GRN,'Y'))
-       s.prims.append(Primitive(s.gp111,s.gp101,GRN,'Y'))
+       s.prims.append(Line(s.gp001,s.gp101,RED,'X'))
+       s.prims.append(Line(s.gp011,s.gp111,RED,'X'))
+       s.prims.append(Line(s.gp011,s.gp001,GRN,'Y'))
+       s.prims.append(Line(s.gp111,s.gp101,GRN,'Y'))
        # right wall
-       s.prims.append(Primitive(s.gp100,s.gp101,BLU,'Z'))
-       s.prims.append(Primitive(s.gp110,s.gp111,BLU,'Z'))
-       s.prims.append(Primitive(s.gp110,s.gp100,GRN,'Y'))
+       s.prims.append(Line(s.gp100,s.gp101,BLU,'Z'))
+       s.prims.append(Line(s.gp110,s.gp111,BLU,'Z'))
+       s.prims.append(Line(s.gp110,s.gp100,GRN,'Y'))
        # left wall
-       s.prims.append(Primitive(s.gp000,s.gp001,BLU,'Z'))
-       s.prims.append(Primitive(s.gp010,s.gp011,BLU,'Z'))
-       s.prims.append(Primitive(s.gp010,s.gp000,GRN,'Y'))
+       s.prims.append(Line(s.gp000,s.gp001,BLU,'Z'))
+       s.prims.append(Line(s.gp010,s.gp011,BLU,'Z'))
+       s.prims.append(Line(s.gp010,s.gp000,GRN,'Y'))
        # front
-       s.prims.append(Primitive(s.gp000,s.gp100,RED,'X'))
-       s.prims.append(Primitive(s.gp010,s.gp110,RED,'X'))
+       s.prims.append(Line(s.gp000,s.gp100,RED,'X'))
+       s.prims.append(Line(s.gp010,s.gp110,RED,'X'))
        # roof
-       s.prims.append(Primitive(s.gp011,s.gprb, YLW,'D'))
-       s.prims.append(Primitive(s.gp111,s.gprb, YLW,'D'))
-       s.prims.append(Primitive(s.gp010,s.gprf, YLW,'D'))
-       s.prims.append(Primitive(s.gp110,s.gprf, YLW,'D'))
-       #s.prims.append(Primitive(s.gprb, s.gprf, BLU,'Z'))
+       s.prims.append(Line(s.gp011,s.gprb, YLW,'D'))
+       s.prims.append(Line(s.gp111,s.gprb, YLW,'D'))
+       s.prims.append(Line(s.gp010,s.gprf, YLW,'D'))
+       s.prims.append(Line(s.gp110,s.gprf, YLW,'D'))
+       #s.prims.append(Line(s.gprb, s.gprf, BLU,'Z'))
 
        s.grounds = []
        lo=-1
        hi=2
        for xz in range(lo,hi+1):
-          s.grounds.append(Primitive(np.array([[xz],[0],[lo],[1]]),
+          s.grounds.append(Line(np.array([[xz],[0],[lo],[1]]),
                                      np.array([[xz],[0],[100],[1]]),BRN,'G'))
-          s.grounds.append(Primitive(np.array([[lo],[0],[xz],[1]]),
+          s.grounds.append(Line(np.array([[lo],[0],[xz],[1]]),
                                      np.array([[100],[0],[xz],[1]]),BRN,'G'))
        # this is not workin out
        s.grounds = []
@@ -194,26 +263,12 @@ class HouseWriter():
              if p.typ==t:
                 p.vp = vp
 
-
-
-    def draw_prim(s, img, p, wid=2, extend=1):
-       project_gline(img, s.cam, p.gp0, p.gp1, p.col, wid=wid)
-       if extend>0 and p.typ != 'D':
-          ip3 = s.cam@p.gp1
-          ip2 = ip3[0:2,:] / ip3[2,0]
-          vp  = p.vp
-          ept = extend*vp + (1-extend)*ip2
-          cv2.line(img, pt(img, ip2), pt(img, ept), p.col, 1)
-
-
-
-    def house(s, image_in=None, fat=None, extend=0,
+    def house(s, image_in=None, fat=None, extend=0, scale=1.0,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
               dump=False, show=False, write=True):
        if image_in is None:
            img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
-           img[:] = WHT
        else:
            img = image_in
        s.updateK(f, None, None)
@@ -224,7 +279,7 @@ class HouseWriter():
 
        for p in s.prims:
           w = 4 if fat is not None and fat==p.typ else 2
-          s.draw_prim(img, p, w, extend)
+          p.draw(img, s.cam, w, extend, scale)
 
        #mark_origin(img, s.cam)
        if dump:   cv2.imwrite('dbg.png', img)
@@ -260,13 +315,13 @@ print('\nFats',end='')
 for fat_ax in ['X','Z','Y','D']:
    for a in range(15): hw.house(fat=fat_ax)
 
-print('\nStill',end='')
-for a in range(30): hw.house()
-
 print('\nExtend',end='')
 for e in np.arange(0.0, 1.01, 0.05):
    hw.house(extend=e)
-for a in range(20): hw.house(extend=1)
+
+print('\nShrink', end='')
+for s in np.arange(1.0, 0.3, -0.05):
+   hw.house(extend=1, scale=s)
 
 
 
