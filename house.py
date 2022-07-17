@@ -12,6 +12,7 @@ WHT=(255,255,255)
 BLK=(0,0,0)
 BRN=(60,86,132)
 PPL=(200,0,200)
+SKY=(235,206,135)
 
 
 def spew(fname, contents):
@@ -139,17 +140,21 @@ class Primitive():
 
 
 class ImgPoly(Primitive):
-   def __init__(s, points, color):
+   def __init__(s, points, color, filled=True):
       super().__init__('IPOLY', color)
       s.verts = points
+      s.filled = filled
 
    def draw(s, img, cam, wid=1, extend=False, scl=1.0):
       sverts = []
       for v in s.verts:
          sverts.append(scale_ip(img, v[0], v[1], scl))
       vs = [np.array(sverts, np.int32).reshape((-1,1,2))]
-      cv2.fillPoly(img, vs, s.col)
-
+      if s.filled:
+         cv2.fillPoly(img, vs, s.col)
+      else:
+         for i in range(len(s.verts)):
+            cv2.line(img, s.verts[i], s.verts[(i+1)%len(s.verts)], s.col, 2)
 
 class ImgCircle(Primitive):
    def __init__(s, center, radius, color):
@@ -363,12 +368,6 @@ class HouseWriter():
           pp = ImgCircle((s.ppx,s.ppy), 7, PPL)
           pp.draw(img,s.cam)
 
-
-
-
-
-
-
        if drawVPs:
           for vp in s.vps.values():
              vp.draw(img, s.cam, w, extend, scale)
@@ -381,8 +380,64 @@ class HouseWriter():
        print('.', end='')
 
 
+    def fan(s, extend):
+       img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
+       w = s.imgw
+       h = s.imgh
+       siz = w//8
+       siz2 = (siz*3)//2
+       ImgPoly(((0,0),(w,0),(w,siz),(0,siz)), SKY).draw(img,s.cam)
+       ImgPoly(((0,siz),(w,siz),(w,h),(0,h)), BRN).draw(img, s.cam)
 
-       
+       fp0 = (w-3*siz,siz//2)
+       fp1 = (w-2*siz,3*siz)
+       cv2.line(img, fp0, fp1, WHT, 4)
+       fpt = (w-int(siz*1.0), int(siz*1.3))
+       cv2.circle(img, fpt, 5, WHT, -1)
+
+       for i in range(1,24): #
+          f = npt(fpt)
+          p0 = npt(fp0)
+          p1 = npt(fp1)
+          p = p0 + i/25.0 * (p1-p0)
+          v = p-f
+          r1 = 0.15*w
+          r2 = 0.75*w
+          v *= 1.0/np.linalg.norm(v)
+          q1 = f + r1*v
+          q2 = f + r2*v
+          q3 = q2 + extend*(q1-q2)
+          if extend==1.0 and i==12:
+             cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), PPL, 2)
+             ppt = line_inter(fp0,fp1,  fpt, pt(img,q2,flipy=False))
+             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 5, PPL, -1)
+             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 6, BLK, 1)
+          else:
+             cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), WHT, 1)
+
+
+
+       roof = ImgPoly(((siz,h-2*siz), (siz2,h-siz-siz2), (siz*2,h-2*siz)), BRN)
+       roof.draw(img,s.cam)
+       roof.col = YLW
+       roof.filled = False
+       roof.draw(img, s.cam)
+
+       house = ImgPoly(((siz, h - siz), (siz, h - 2 * siz), (2 * siz, h - 2 * siz), (2 * siz, h - siz)), BRN)
+       house.draw(img, s.cam)
+       house.col = RED
+       house.filled = False
+       house.draw(img, s.cam)
+
+       cv2.line(img, (siz,h-siz),(siz,h-2*siz),GRN,2)
+       cv2.line(img, (2*siz,h-siz),(2*siz,h-2*siz),GRN,2)
+
+       s.writer.write(img)
+       print('.', end='')
+
+
+
+
     def __del__(s):
         s.writer.release()
 
@@ -431,7 +486,11 @@ for a in range(10):
 for a in range(10):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPP=True)
 
-
+print('\nFan', end='')
+for e in np.arange(0.0, 1.01, 0.05):
+   hw.fan(e)
+for a in range(10):
+   hw.fan(1.0)
 
 
 
