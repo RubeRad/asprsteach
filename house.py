@@ -300,7 +300,7 @@ class HouseWriter():
                 p.vp = vp
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
-              drawVPs=False, drawVT=False, drawPB=False,
+              drawVPs=False, drawVT=False, drawPB=False, drawPP=False,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
               dump=False, show=False, write=True):
@@ -358,6 +358,11 @@ class HouseWriter():
                 cv2.line(img, pt(img, pX + vX + Xv), pt(img, pX + Xv), PPL, fat)
                 cv2.line(img, pt(img, pY + vY + Yv), pt(img, pY + Yv), PPL, fat)
                 cv2.line(img, pt(img, pZ + vZ + Zv), pt(img, pZ + Zv), PPL, fat)
+
+       if drawPP:
+          pp = ImgCircle((s.ppx,s.ppy), 7, PPL)
+          pp.draw(img,s.cam)
+
 
 
 
@@ -421,8 +426,10 @@ for e in np.arange(0.0, 1.0, 0.05):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=e, fat=4)
 for a in range(10):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1)
-
-
+for a in range(10):
+   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1, drawPP=True)
+for a in range(10):
+   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPP=True)
 
 
 
