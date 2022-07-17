@@ -30,7 +30,7 @@ def color_of(t):
 
 # convert a numpy column-vector into a 2-tuple for cv2 drawing functions
 # (possibly a homomorphic 3-vector)
-def pt(img, x, y=None, scl=1.0):
+def pt(img, x, y=None, scl=1.0, flipy=True):
     h,w = img.shape[0:2]
     col = x
     row = y
@@ -42,15 +42,14 @@ def pt(img, x, y=None, scl=1.0):
             col = x[0,0]
             row = x[1,0]
 
-    if row is None:
-       stophere=1
-
     dx = col - w//2
     dy = row - h//2
     dx *= scl
     dy *= scl
+    if flipy: dy *= -1
 
-    return (irnd(w//2 + dx), irnd(h//2 - dy))
+    return (irnd(w//2 + dx), irnd(h//2 + dy))
+
 
 # convert a 2-tuple or 3-tuple into a numpy column vector
 # (possibly concatenating a homomorphic 1)
@@ -115,6 +114,21 @@ def scale_ip(img, x_or_xy, y=None, s=1.0, flipy=False):
       return (w//2 + dx*s, h//2 + dy*s)
 
 
+# intersect lines defined by two 2-tuples each
+def line_inter(ip00,ip01,  ip10,ip11):
+   rise0 = ip01[1] - ip00[1]
+   run0  = ip01[0] - ip00[0]
+   rise1 = ip11[1] - ip10[1]
+   run1  = ip11[0] - ip10[0]
+
+   A = np.array([[rise0, -run0],
+                 [rise1, -run1]])
+   rhs = np.array([[rise0 * ip00[0] - run0 * ip00[1]],
+                   [rise1 * ip10[0] - run1 * ip10[1]]])
+   vp = np.linalg.solve(A, rhs)
+   return (vp[0,0], vp[1,0])
+
+
 class Primitive():
    def __init__(s, typ, color):
       s.col = color
@@ -164,7 +178,7 @@ class Line(Primitive):
       if extend > 0 and s.typ != 'D':
          ip3 = cam @ s.gp1
          ip2 = ip3[0:2, :] / ip3[2, 0]
-         vp = s.vp
+         vp = npt(s.vp)
          ept = extend * vp + (1 - extend) * ip2
 
          ip2 = npt(scale_ip(img, ip2[0,0], ip2[1,0], scl))
@@ -277,28 +291,16 @@ class HouseWriter():
                 if   p0 is None: p0 = p
                 elif p1 is None: p1 = p
           # VP is intersection of p0 and p1 (as projected)
-          ip00  = s.project(p0.gp0)
-          ip01  = s.project(p0.gp1)
-          rise0 = ip01[1]-ip00[1]
-          run0  = ip01[0]-ip00[0]
-          ip10  = s.project(p1.gp0)
-          ip11  = s.project(p1.gp1)
-          rise1 = ip11[1] - ip10[1]
-          run1  = ip11[0] - ip10[0]
-
-          A = np.array([[rise0, -run0],
-                        [rise1, -run1]])
-          rhs = np.array([[rise0*ip00[0] - run0*ip00[1]],
-                          [rise1*ip10[0] - run1*ip10[1]]])
-          vp = np.linalg.solve(A, rhs)
-          s.vps[t] = ImgCircle(vp.reshape(2).tolist(), 5, color_of(t))
+          vp = line_inter(s.project(p0.gp0), s.project(p0.gp1),
+                          s.project(p1.gp0), s.project(p1.gp1))
+          s.vps[t] = ImgCircle(vp, 5, color_of(t))
 
           for p in s.prims:
              if p.typ==t:
                 p.vp = vp
 
-    def house(s, image_in=None, fat=1.0, extend=0, scale=1.0,
-              drawVPs=False, drawVT=False,
+    def house(s, image_in=None, fat=None, extend=0, scale=1.0,
+              drawVPs=False, drawVT=False, drawPB=False,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
               dump=False, show=False, write=True):
@@ -316,16 +318,51 @@ class HouseWriter():
           w = 4 if fat is not None and fat==p.typ else 2
           p.draw(img, s.cam, w, extend, scale)
 
-       if drawVT:
-          vpX = npt(scale_ip(img, s.vps['X'].ctr, s=scale))
-          vpY = npt(scale_ip(img, s.vps['Y'].ctr, s=scale))
-          vpZ = npt(scale_ip(img, s.vps['Z'].ctr, s=scale))
+       if drawVT or drawPB:
+          tpX = scale_ip(img, s.vps['X'].ctr, s=scale); vpX=npt(tpX)
+          tpY = scale_ip(img, s.vps['Y'].ctr, s=scale); vpY=npt(tpY)
+          tpZ = scale_ip(img, s.vps['Z'].ctr, s=scale); vpZ=npt(tpZ)
           dXY = (vpY - vpX)*drawVT
           dYZ = (vpZ - vpY)*drawVT
           dZX = (vpX - vpZ)*drawVT
-          cv2.line(img, pt(img, vpX), pt(img, vpX+dXY), PPL, fat)
-          cv2.line(img, pt(img, vpY), pt(img, vpY+dYZ), PPL, fat)
-          cv2.line(img, pt(img, vpZ), pt(img, vpZ+dZX), PPL, fat)
+          wid=1 if drawPB else fat
+          cv2.line(img, pt(img, vpX), pt(img, vpX+dXY), PPL, wid)
+          cv2.line(img, pt(img, vpY), pt(img, vpY+dYZ), PPL, wid)
+          cv2.line(img, pt(img, vpZ), pt(img, vpZ+dZX), PPL, wid)
+
+          if drawPB:
+             # we already know the principal point that all the
+             # perpendicular bisectors pass through
+             pp = (s.ppx,s.ppy)
+             vX = (npt(line_inter(tpX,pp, tpY,tpZ)) - vpX)* drawPB
+             vY = (npt(line_inter(tpY,pp, tpX,tpZ)) - vpY)* drawPB
+             vZ = (npt(line_inter(tpZ,pp, tpX,tpY)) - vpZ)* drawPB
+             pX = vpX+vX
+             pY = vpY+vY
+             pZ = vpZ+vZ
+             wid=fat if fat is not None else 1
+             cv2.line(img, pt(img,vpX), pt(img,pX), PPL, wid)
+             cv2.line(img, pt(img,vpY), pt(img,pY), PPL, wid)
+             cv2.line(img, pt(img,vpZ), pt(img,pZ), PPL, wid)
+
+             if drawPB==1.0:
+                vX *= -10.0 / np.linalg.norm(vX) # back up 10 pix
+                vY *= -10.0 / np.linalg.norm(vY)
+                vZ *= -10.0 / np.linalg.norm(vZ)
+                Xv = npt((vX[1,0], -vX[0,0])) # perpendicular direction
+                Yv = npt((vY[1,0], -vY[0,0]))
+                Zv = npt((vZ[1,0], -vZ[0,0]))
+                cv2.line(img, pt(img, pX + vX + Xv), pt(img, pX + vX), PPL, fat)
+                cv2.line(img, pt(img, pY + vY + Yv), pt(img, pY + vY), PPL, fat)
+                cv2.line(img, pt(img, pZ + vZ + Zv), pt(img, pZ + vZ), PPL, fat)
+                cv2.line(img, pt(img, pX + vX + Xv), pt(img, pX + Xv), PPL, fat)
+                cv2.line(img, pt(img, pY + vY + Yv), pt(img, pY + Yv), PPL, fat)
+                cv2.line(img, pt(img, pZ + vZ + Zv), pt(img, pZ + Zv), PPL, fat)
+
+
+
+
+
 
        if drawVPs:
           for vp in s.vps.values():
@@ -378,6 +415,12 @@ for s in np.arange(1.0, 0.3, -0.05):
 print('\nTriangle', end='')
 for e in np.arange(0.0, 1.01, 0.05):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=e, fat=4)
+
+print('\nBisectors', end='')
+for e in np.arange(0.0, 1.0, 0.05):
+   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=e, fat=4)
+for a in range(10):
+   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1)
 
 
 
