@@ -18,6 +18,15 @@ def spew(fname, contents):
     f.write(contents)
     f.close()
 
+def irnd(x):
+   return int(np.round(x))
+
+def color_of(t):
+   if t == 'X': return RED
+   if t == 'Y': return GRN
+   if t == 'Z': return BLU
+   if t == 'D': return YLW
+
 def pt(img, x, y=None, scl=1.0):
     h,w = img.shape[0:2]
     col = x
@@ -38,7 +47,7 @@ def pt(img, x, y=None, scl=1.0):
     dx *= scl
     dy *= scl
 
-    return (int(np.round(w//2 + dx)), int(np.round(h//2 - dy)))
+    return (irnd(w//2 + dx), irnd(h//2 - dy))
 
 def mark_origin(img, cam):
     c = cam @ np.array([[0],[0],[0],[1]])
@@ -105,6 +114,18 @@ class ImgPoly(Primitive):
          sverts.append(scale_ip(img, v[0], v[1], scl))
       vs = [np.array(sverts, np.int32).reshape((-1,1,2))]
       cv2.fillPoly(img, vs, s.col)
+
+
+class ImgCircle(Primitive):
+   def __init__(s, center, radius, color):
+      super().__init__('CIRCLE', color)
+      s.ctr = center
+      s.rad = radius
+
+   def draw(s, img, cam, wid=1, extend=False, scl=1.0):
+      col,row = scale_ip(img, s.ctr[0], s.ctr[1], scl, flipy=True)
+      # scale the radius?
+      cv2.circle(img, (irnd(col), irnd(row)), s.rad, s.col, -1)
 
 
 class Line(Primitive):
@@ -210,6 +231,8 @@ class HouseWriter():
        # this is not workin out
        s.grounds = []
 
+       s.vps = {}
+       s.updateVP()
 
 
     def updateK(s, f, ppx, ppy):
@@ -258,12 +281,14 @@ class HouseWriter():
           rhs = np.array([[rise0*ip00[0] - run0*ip00[1]],
                           [rise1*ip10[0] - run1*ip10[1]]])
           vp = np.linalg.solve(A, rhs)
+          s.vps[t] = ImgCircle(vp.reshape(2).tolist(), 5, color_of(t))
 
           for p in s.prims:
              if p.typ==t:
                 p.vp = vp
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
+              drawVPs=False, drawVT=False,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
               dump=False, show=False, write=True):
@@ -280,6 +305,10 @@ class HouseWriter():
        for p in s.prims:
           w = 4 if fat is not None and fat==p.typ else 2
           p.draw(img, s.cam, w, extend, scale)
+
+       if drawVPs:
+          for vp in s.vps.values():
+             vp.draw(img, s.cam, w, extend, scale)
 
        #mark_origin(img, s.cam)
        if dump:   cv2.imwrite('dbg.png', img)
@@ -309,11 +338,13 @@ hw.updateRt()
 
 
 print('Still',end='')
-for a in range(30): hw.house()
+for a in range(30):
+   hw.house()
 
 print('\nFats',end='')
 for fat_ax in ['X','Z','Y','D']:
-   for a in range(15): hw.house(fat=fat_ax)
+   for a in range(15):
+      hw.house(fat=fat_ax)
 
 print('\nExtend',end='')
 for e in np.arange(0.0, 1.01, 0.05):
@@ -321,7 +352,7 @@ for e in np.arange(0.0, 1.01, 0.05):
 
 print('\nShrink', end='')
 for s in np.arange(1.0, 0.3, -0.05):
-   hw.house(extend=1, scale=s)
+   hw.house(extend=1, scale=s, drawVPs=True)
 
 
 
