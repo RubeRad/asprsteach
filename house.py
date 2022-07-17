@@ -11,6 +11,7 @@ YLW=(0,255,255)
 WHT=(255,255,255)
 BLK=(0,0,0)
 BRN=(60,86,132)
+PPL=(200,0,200)
 
 
 def spew(fname, contents):
@@ -27,6 +28,8 @@ def color_of(t):
    if t == 'Z': return BLU
    if t == 'D': return YLW
 
+# convert a numpy column-vector into a 2-tuple for cv2 drawing functions
+# (possibly a homomorphic 3-vector)
 def pt(img, x, y=None, scl=1.0):
     h,w = img.shape[0:2]
     col = x
@@ -49,8 +52,21 @@ def pt(img, x, y=None, scl=1.0):
 
     return (irnd(w//2 + dx), irnd(h//2 - dy))
 
+# convert a 2-tuple or 3-tuple into a numpy column vector
+# (possibly concatenating a homomorphic 1)
+def npt(tup, hom=False):
+   l = len(tup)
+   if hom: l += 1
+   pt = np.zeros((l,1))
+   for i in range(len(tup)):
+      pt[i,0] = tup[i]
+   if hom:
+      pt[l,0] = 1
+   return pt
+
+
 def mark_origin(img, cam):
-    c = cam @ np.array([[0],[0],[0],[1]])
+    c = cam @ npt((0,0,0,1))
     cv2.circle(img, pt(img,c), 3, (255,255,255))
 
 def project_gline(img, cam, gp0, gp1, color, wid=2, scl=1.0):
@@ -80,12 +96,17 @@ def buildRt(az, ti, sw, tx, ty, tz):
                    [-m.sin(s), m.cos(s), 0],
                    [ 0,        0,        1]])
     R = Rs @ Rt @ Ra
-    t = np.array([[tx],[ty],[tz]])
+    t = npt((tx,ty,tz))
     return(np.hstack((R,t)))
 
 
-def scale_ip(img, x, y, s, flipy=False):
+def scale_ip(img, x_or_xy, y=None, s=1.0, flipy=False):
    h,w = img.shape[0:2]
+   if y is None:
+      y = x_or_xy[1]
+      x = x_or_xy[0]
+   else:
+      x = x_or_xy
    dx = x - w//2
    dy = y - h//2
    if flipy:
@@ -146,8 +167,8 @@ class Line(Primitive):
          vp = s.vp
          ept = extend * vp + (1 - extend) * ip2
 
-         ip2 = np.array(scale_ip(img, ip2[0,0], ip2[1,0], scl)).reshape((2,1))
-         ept = np.array(scale_ip(img, ept[0,0], ept[1,0], scl)).reshape((2,1))
+         ip2 = npt(scale_ip(img, ip2[0,0], ip2[1,0], scl))
+         ept = npt(scale_ip(img, ept[0,0], ept[1,0], scl))
 
          cv2.line(img, pt(img, ip2), pt(img, ept), s.col, 1)
 
@@ -176,16 +197,16 @@ class HouseWriter():
        s.cam = s.K @ s.Rt
        
        # 8 vertices
-       s.gp000 = np.array([[0], [0], [0], [1]])
-       s.gp001 = np.array([[0], [0], [1], [1]])
-       s.gp010 = np.array([[0], [1], [0], [1]])
-       s.gp011 = np.array([[0], [1], [1], [1]])
-       s.gp100 = np.array([[1], [0], [0], [1]])
-       s.gp101 = np.array([[1], [0], [1], [1]])
-       s.gp110 = np.array([[1], [1], [0], [1]])
-       s.gp111 = np.array([[1], [1], [1], [1]])
-       s.gprf = np.array([[.5], [1.5], [.5], [1]])
-       s.gprb = np.array([[.5], [1.5], [.5], [1]])
+       s.gp000 = npt((0,0,0,1))
+       s.gp001 = npt((0,0,1,1))
+       s.gp010 = npt((0,1,0,1))
+       s.gp011 = npt((0,1,1,1))
+       s.gp100 = npt((1,0,0,1))
+       s.gp101 = npt((1,0,1,1))
+       s.gp110 = npt((1,1,0,1))
+       s.gp111 = npt((1,1,1,1))
+       s.gprf = npt((.5,1.5,.5,1))
+       s.gprb = npt((.5,1.5,.5,1))
 
        # build the primitives out of the vertices
        # layered back to front so it looks good
@@ -219,17 +240,6 @@ class HouseWriter():
        s.prims.append(Line(s.gp010,s.gprf, YLW,'D'))
        s.prims.append(Line(s.gp110,s.gprf, YLW,'D'))
        #s.prims.append(Line(s.gprb, s.gprf, BLU,'Z'))
-
-       s.grounds = []
-       lo=-1
-       hi=2
-       for xz in range(lo,hi+1):
-          s.grounds.append(Line(np.array([[xz],[0],[lo],[1]]),
-                                     np.array([[xz],[0],[100],[1]]),BRN,'G'))
-          s.grounds.append(Line(np.array([[lo],[0],[xz],[1]]),
-                                     np.array([[100],[0],[xz],[1]]),BRN,'G'))
-       # this is not workin out
-       s.grounds = []
 
        s.vps = {}
        s.updateVP()
@@ -287,7 +297,7 @@ class HouseWriter():
              if p.typ==t:
                 p.vp = vp
 
-    def house(s, image_in=None, fat=None, extend=0, scale=1.0,
+    def house(s, image_in=None, fat=1.0, extend=0, scale=1.0,
               drawVPs=False, drawVT=False,
               azim=None, tilt=None, swng=None,
               tx=None, ty=None, tz=None, f=None,
@@ -305,6 +315,17 @@ class HouseWriter():
        for p in s.prims:
           w = 4 if fat is not None and fat==p.typ else 2
           p.draw(img, s.cam, w, extend, scale)
+
+       if drawVT:
+          vpX = npt(scale_ip(img, s.vps['X'].ctr, s=scale))
+          vpY = npt(scale_ip(img, s.vps['Y'].ctr, s=scale))
+          vpZ = npt(scale_ip(img, s.vps['Z'].ctr, s=scale))
+          dXY = (vpY - vpX)*drawVT
+          dYZ = (vpZ - vpY)*drawVT
+          dZX = (vpX - vpZ)*drawVT
+          cv2.line(img, pt(img, vpX), pt(img, vpX+dXY), PPL, fat)
+          cv2.line(img, pt(img, vpY), pt(img, vpY+dYZ), PPL, fat)
+          cv2.line(img, pt(img, vpZ), pt(img, vpZ+dZX), PPL, fat)
 
        if drawVPs:
           for vp in s.vps.values():
@@ -353,6 +374,10 @@ for e in np.arange(0.0, 1.01, 0.05):
 print('\nShrink', end='')
 for s in np.arange(1.0, 0.3, -0.05):
    hw.house(extend=1, scale=s, drawVPs=True)
+
+print('\nTriangle', end='')
+for e in np.arange(0.0, 1.01, 0.05):
+   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=e, fat=4)
 
 
 
