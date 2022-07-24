@@ -138,6 +138,9 @@ class Primitive():
    def draw(s, img, cam, wid=1, extend=False, scl=1.0):
       pass
 
+   def draw2D(s, img, scl, offx, offy):
+      pass
+
 
 class ImgPoly(Primitive):
    def __init__(s, points, color, filled=True):
@@ -190,6 +193,15 @@ class Line(Primitive):
          ept = npt(scale_ip(img, ept[0,0], ept[1,0], scl))
 
          cv2.line(img, pt(img, ip2), pt(img, ept), s.col, 1)
+
+   def draw2D(s, img, scl, offx, offy):
+      off = np.array([offx,offy])
+      xy0 = np.array(s.gp0) / scl + off
+      xy1 = np.array(s.gp1) / scl + off
+      rc0 = tuple(np.round(xy0).astype(int).tolist())
+      rc1 = tuple(np.round(xy1).astype(int).tolist())
+
+      cv2.line(img, rc0,rc1,s.col,4)
 
 
 
@@ -303,6 +315,46 @@ class HouseWriter():
           for p in s.prims:
              if p.typ==t:
                 p.vp = vp
+
+    def piranesi(s, picture=True, extend=1.0, scl=6):
+       # "Views from Rome", 1750-78, Battista Piranesi
+       # Download 1959x1334 image as piranesi.jpg from:
+       # https://www.metmuseum.org/art/collection/search/406668
+       img = np.zeros((s.imgh,    s.imgw, 3), np.uint8)
+
+       s.prims[1].draw(img, s.cam)
+
+       big = cv2.imread('piranesi.jpg')
+       ph,pw = big.shape[0:2]
+       sma = cv2.resize(big, (int(pw/scl), int(ph/scl)))
+       ph,pw = sma.shape[0:2]
+       oh = (s.imgh - ph) // 2
+       ow = (s.imgw - pw) // 2
+       img[oh:oh+ph,ow:ow+pw] = sma
+
+       red1 = Line((1017,343),(1488,483),RED,'X')
+       red2 = Line((166,720),(382,739),RED,'X')
+       red3 = Line((637,939),(771,975),RED,'X')
+       grn1 = Line((442,783),(620,731),GRN,'Y')
+       grn2 = Line((1204,757),(1702,681),GRN,'Y')
+       grn3 = Line((1255,996),(1641,1018),GRN,'Y')
+       vpr = line_inter(red1.gp0,red1.gp1, red3.gp0,red3.gp1)
+       vpg = line_inter(grn1.gp0,grn1.gp1, grn3.gp0,grn3.gp1)
+
+       for l in [red1,red2,red3,grn1,grn2,grn3]:
+          l.draw2D(img,scl,ow,oh)
+
+
+
+
+
+       #cv2.imwrite('dbg.png', img)
+       s.writer.write(img)
+       print('.',end='')
+
+
+
+
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
               drawVPs=False, drawVT=False, drawPB=False, drawPP=False,
@@ -450,12 +502,15 @@ class HouseWriter():
 
 
 
-hw = HouseWriter(width=720, height=480)
-
+#hw = HouseWriter(width=720, height=480)
+hw = HouseWriter(width=1920,height=1080)
 hw.updateRt()
 
+print('Art',end='')
+for e in np.arange(1.0, -0.01, -0.05):
+   hw.piranesi(scl=3, extend=e)
 
-print('Still',end='')
+print('\nStill',end='')
 for a in range(30):
    hw.house()
 
