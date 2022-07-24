@@ -456,7 +456,7 @@ class HouseWriter():
        print('.', end='')
 
 
-    def fan(s, extend):
+    def fan(s, extend, flen=0.5):
        img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
        w = s.imgw
        h = s.imgh
@@ -468,26 +468,43 @@ class HouseWriter():
        fp0 = (w-3*siz,siz//2)
        fp1 = (w-2*siz,3*siz)
        cv2.line(img, fp0, fp1, WHT, 4)
-       fpt = (w-int(siz*1.0), int(siz*1.2))
+
+       p0 = npt(fp0)
+       p1 = npt(fp1)
+
+       ppt = (p0+p1)/2
+       fv = p1-p0
+       pv = npt((fv[1],-fv[0]))
+       f = ppt + pv*flen
+       fpt = pt(img,f,flipy=False)
+
        cv2.circle(img, fpt, 10, WHT, -1)
 
-       for i in range(1,24): #
-          f = npt(fpt)
-          p0 = npt(fp0)
-          p1 = npt(fp1)
-          p = p0 + i/25.0 * (p1-p0)
-          v = p-f
-          r1 = 0.15*w
+       v = p0 - f
+       a0 = m.atan2(v[1],v[0]) + 2*m.pi
+       deg0 = m.degrees(a0)
+       v = p1 - f
+       a1 = m.atan2(v[1],v[0])
+       deg1 = m.degrees(a1)
+       pa = (a0+a1)/2
+       da = a1-a0
+       ddeg = m.degrees(da)
+       da *= 0.95 / 22
+       ddeg = m.degrees(da)
+
+       for i in range(-11,12): #
+          a = pa + i*da
+          ddeg = m.degrees(a)
+          v = npt((np.cos(a),np.sin(a)))
+          r1 = 0.05*w
           r2 = 0.75*w
-          v *= 1.0/np.linalg.norm(v)
           q1 = f + r1*v
           q2 = f + r2*v
           q3 = q2 + extend*(q1-q2)
-          if extend==1.0 and i==12:
+          if extend==1.0 and i==0:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), PPL, 2)
-             ppt = line_inter(fp0,fp1,  fpt, pt(img,q2,flipy=False))
-             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 10, PPL, -1)
-             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 11, BLK, 1)
+             cv2.circle(img, pt(img,ppt,flipy=False), 10, PPL, -1)
+             cv2.circle(img, pt(img,ppt,flipy=False), 11, BLK, 1)
           else:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), WHT, 1)
 
@@ -576,10 +593,10 @@ for a in range(10):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPP=True)
 
 print('\nFan', end='')
-for e in np.arange(0.0, 1.01, 0.05):
+for e in np.arange(0.0, 1.01, 0.02):
    hw.fan(e)
-for a in range(10):
-   hw.fan(1.0)
+for f in np.arange(0.25,0.75,0.02):
+   hw.fan(1.0, flen=f)
 
 
 
