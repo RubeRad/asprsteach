@@ -138,7 +138,7 @@ class Primitive():
    def draw(s, img, cam, wid=1, extend=False, scl=1.0):
       pass
 
-   def draw2D(s, img, scl, offx, offy):
+   def draw2D(s, img, scl, offx, offy, wid=4):
       pass
 
 
@@ -170,6 +170,12 @@ class ImgCircle(Primitive):
       # scale the radius?
       cv2.circle(img, (irnd(col), irnd(row)), s.rad, s.col, -1)
 
+   def draw2D(s, img, scl, offx, offy, wid=4):
+      off = np.array([offx,offy])
+      ctr = np.array(s.ctr) / scl + off
+      ictr = tuple(np.round(ctr).astype(int).tolist())
+      cv2.circle(img, ictr, s.rad, s.col, -1)
+
 
 class Line(Primitive):
    def __init__(s, gpt0, gpt1, color, typ):
@@ -194,14 +200,29 @@ class Line(Primitive):
 
          cv2.line(img, pt(img, ip2), pt(img, ept), s.col, 1)
 
-   def draw2D(s, img, scl, offx, offy):
+   def draw2D(s, img, scl, offx, offy, wid=4):
       off = np.array([offx,offy])
       xy0 = np.array(s.gp0) / scl + off
       xy1 = np.array(s.gp1) / scl + off
       rc0 = tuple(np.round(xy0).astype(int).tolist())
       rc1 = tuple(np.round(xy1).astype(int).tolist())
 
-      cv2.line(img, rc0,rc1,s.col,4)
+      cv2.line(img, rc0,rc1,s.col, wid)
+
+   def extendToward(s, pt2, ext):
+      p0 = np.array(s.gp0)
+      p1 = np.array(s.gp1)
+      v01 = p1-p0
+      l01 = np.linalg.norm(v01)
+
+      p2 = np.array(pt2, np.float64)
+      v12 = p2-p1
+      l12 = np.linalg.norm(v12)
+      len = l01 + ext * l12
+
+      v02 = p2-p0
+      v02 *= 1.0/np.linalg.norm(v02)
+      s.gp1 = tuple(p0 + len*v02)
 
 
 
@@ -212,7 +233,7 @@ class HouseWriter():
        fourcc = cv2.VideoWriter_fourcc(*'XVID')
        s.writer = cv2.VideoWriter(fname, fourcc, 15, (width,height))
 
-       s.foc = 200
+       s.foc = 500
        s.ppx = s.imgw//2
        s.ppy = s.imgh//2
        s.K = buildK(s.foc, s.ppx, s.ppy)
@@ -222,7 +243,7 @@ class HouseWriter():
        s.swg = 180
        s.tx = 0
        s.ty = -.9
-       s.tz = 1
+       s.tz = 1.0
        s.Rt = buildRt(s.azi, s.tlt, s.swg, s.tx, s.ty, s.tz)
        
        s.cam = s.K @ s.Rt
@@ -275,6 +296,14 @@ class HouseWriter():
        s.vps = {}
        s.updateVP()
 
+       # "Views from Rome", 1750-78, Battista Piranesi
+       # Download 1959x1334 image as piranesi.jpg from:
+       # https://www.metmuseum.org/art/collection/search/406668
+       s.pscl=2.2
+       big = cv2.imread('piranesi.jpg')
+       ph, pw = big.shape[0:2]
+       s.pimg = cv2.resize(big, (int(pw / s.pscl), int(ph / s.pscl)))
+
 
     def updateK(s, f, ppx, ppy):
        focal = f   if f   is not None else s.foc; s.foc = focal
@@ -310,50 +339,45 @@ class HouseWriter():
           # VP is intersection of p0 and p1 (as projected)
           vp = line_inter(s.project(p0.gp0), s.project(p0.gp1),
                           s.project(p1.gp0), s.project(p1.gp1))
-          s.vps[t] = ImgCircle(vp, 5, color_of(t))
+          s.vps[t] = ImgCircle(vp, 10, color_of(t))
 
           for p in s.prims:
              if p.typ==t:
                 p.vp = vp
 
-    def piranesi(s, picture=True, extend=1.0, scl=6):
-       # "Views from Rome", 1750-78, Battista Piranesi
-       # Download 1959x1334 image as piranesi.jpg from:
-       # https://www.metmuseum.org/art/collection/search/406668
+    def piranesi(s, picture=1.0, extend=1.0, wid=4):
+
        img = np.zeros((s.imgh,    s.imgw, 3), np.uint8)
 
-       s.prims[1].draw(img, s.cam)
-
-       big = cv2.imread('piranesi.jpg')
-       ph,pw = big.shape[0:2]
-       sma = cv2.resize(big, (int(pw/scl), int(ph/scl)))
-       ph,pw = sma.shape[0:2]
+       ph,pw = s.pimg.shape[0:2]
        oh = (s.imgh - ph) // 2
        ow = (s.imgw - pw) // 2
-       img[oh:oh+ph,ow:ow+pw] = sma
+       if picture:
+          fade = s.pimg.astype(np.float32)*picture
+          img[oh:oh+ph,ow:ow+pw] = fade.astype(np.uint8)
 
        red1 = Line((1017,343),(1488,483),RED,'X')
        red2 = Line((166,720),(382,739),RED,'X')
-       red3 = Line((637,939),(771,975),RED,'X')
-       grn1 = Line((442,783),(620,731),GRN,'Y')
-       grn2 = Line((1204,757),(1702,681),GRN,'Y')
-       grn3 = Line((1255,996),(1641,1018),GRN,'Y')
-       vpr = line_inter(red1.gp0,red1.gp1, red3.gp0,red3.gp1)
-       vpg = line_inter(grn1.gp0,grn1.gp1, grn3.gp0,grn3.gp1)
+       red3 = Line((637,995),(740,992),RED,'X')
+       grn1 = Line((620,731),(442,783),GRN,'Y')
+       grn2 = Line((1702,681),(1204,757),GRN,'Y')
+       grn3 = Line((1641,1018),(1255,996),GRN,'Y')
+       vpr = (2900,850)#line_inter(red1.gp0,red1.gp1, red3.gp0,red3.gp1)
+       vpg = (-190,958)#line_inter(grn1.gp0,grn1.gp1, grn3.gp0,grn3.gp1)
 
-       for l in [red1,red2,red3,grn1,grn2,grn3]:
-          l.draw2D(img,scl,ow,oh)
+       if extend==1.0:
+          ImgCircle(vpr,10,RED).draw2D(img,s.pscl,ow,oh)
+          ImgCircle(vpg,10,GRN).draw2D(img,s.pscl,ow,oh)
 
-
-
-
+       if wid:
+          for l in [red1,red2,red3,grn1,grn2,grn3]:
+             if l.typ == 'X': l.extendToward(vpr,extend)
+             else:            l.extendToward(vpg,extend)
+             l.draw2D(img,s.pscl,ow,oh,wid)
 
        #cv2.imwrite('dbg.png', img)
        s.writer.write(img)
        print('.',end='')
-
-
-
 
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
@@ -417,7 +441,7 @@ class HouseWriter():
                 cv2.line(img, pt(img, pZ + vZ + Zv), pt(img, pZ + Zv), PPL, fat)
 
        if drawPP:
-          pp = ImgCircle((s.ppx,s.ppy), 7, PPL)
+          pp = ImgCircle((s.ppx,s.ppy), 10, PPL)
           pp.draw(img,s.cam)
 
        if drawVPs:
@@ -444,8 +468,8 @@ class HouseWriter():
        fp0 = (w-3*siz,siz//2)
        fp1 = (w-2*siz,3*siz)
        cv2.line(img, fp0, fp1, WHT, 4)
-       fpt = (w-int(siz*1.0), int(siz*1.3))
-       cv2.circle(img, fpt, 5, WHT, -1)
+       fpt = (w-int(siz*1.0), int(siz*1.2))
+       cv2.circle(img, fpt, 10, WHT, -1)
 
        for i in range(1,24): #
           f = npt(fpt)
@@ -462,8 +486,8 @@ class HouseWriter():
           if extend==1.0 and i==12:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), PPL, 2)
              ppt = line_inter(fp0,fp1,  fpt, pt(img,q2,flipy=False))
-             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 5, PPL, -1)
-             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 6, BLK, 1)
+             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 10, PPL, -1)
+             cv2.circle(img, (irnd(ppt[0]),irnd(ppt[1])), 11, BLK, 1)
           else:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), WHT, 1)
 
@@ -503,12 +527,22 @@ class HouseWriter():
 
 
 #hw = HouseWriter(width=720, height=480)
-hw = HouseWriter(width=1920,height=1080)
+hw = HouseWriter()
 hw.updateRt()
 
 print('Art',end='')
+for a in range(10):
+   hw.piranesi(picture=0.0, extend=1.0)   # just VP/VL
+for f in np.arange(0.0, 1.01, 0.05):
+   hw.piranesi(picture=f, extend=1.0) # fade in the picture
 for e in np.arange(1.0, -0.01, -0.05):
-   hw.piranesi(scl=3, extend=e)
+   hw.piranesi(extend=e)              # shrink the vanishing lines
+for w in (4,3,2,1):
+   for a in range(5):
+      hw.piranesi(extend=0.0, wid=w)  # thin the vanishing lines
+for a in range(10):
+   hw.piranesi(extend=0.0, wid=0)       # hold just the picture
+
 
 print('\nStill',end='')
 for a in range(30):
