@@ -29,6 +29,10 @@ def color_of(t):
    if t == 'Z': return BLU
    if t == 'D': return YLW
 
+def D2to3(xyw): # kind of actuall 3 to 4
+   x,y,w = xyw.reshape(3).tolist()
+   return np.array([[x/w],[y/w],[0],[1]])
+
 # convert a numpy column-vector into a 2-tuple for cv2 drawing functions
 # (possibly a homomorphic 3-vector)
 def pt(img, x, y=None, scl=1.0, flipy=True):
@@ -141,6 +145,9 @@ class Primitive():
    def draw2D(s, img, scl, offx, offy, wid=4):
       pass
 
+   def drawdraw(s, img, cam0, cam1, wid=1):
+      pass
+
 
 class ImgPoly(Primitive):
    def __init__(s, points, color, filled=True):
@@ -158,6 +165,17 @@ class ImgPoly(Primitive):
       else:
          for i in range(len(s.verts)):
             cv2.line(img, s.verts[i], s.verts[(i+1)%len(s.verts)], s.col, 2)
+
+   def drawdraw(s, img, cam0, cam1, wid=1):
+      h = img.shape[0]
+      sverts = []
+      for v in s.verts:
+         gp = np.array([[v[0]],[h-v[1]],[0],[1]])
+         ip = cam1 @ gp
+         sverts.append(pt(img,ip))
+      vs = [np.array(sverts, np.int32).reshape((-1, 1, 2))]
+      cv2.fillPoly(img, vs, s.col)
+
 
 class ImgCircle(Primitive):
    def __init__(s, center, radius, color):
@@ -223,6 +241,17 @@ class Line(Primitive):
       v02 = p2-p0
       v02 *= 1.0/np.linalg.norm(v02)
       s.gp1 = tuple(p0 + len*v02)
+
+   def drawdraw(s, img, cam0, cam1, wid=1):
+      ip0 = cam0 @ s.gp0
+      ip1 = cam0 @ s.gp1
+      tmp0 = D2to3(ip0)
+      tmp1 = D2to3(ip1)
+      ip00 = cam1 @ tmp0
+      ip11 = cam1 @ tmp1
+      pt0 = pt(img,ip00)
+      pt1 = pt(img,ip11)
+      cv2.line(img, pt(img,ip00), pt(img,ip11), s.col, wid)
 
 
 
@@ -529,6 +558,20 @@ class HouseWriter():
        print('.', end='')
 
 
+    # render stuff into the image, and then pretend the image is in ground space
+    # and view it from a perspective, so we can visualize the Perspective Pyramid
+    def pip(s, f2,a2,t2,w2,x2,y2,z2):
+       img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
+       K2  = buildK(f2, s.imgw//2, s.imgh//2)
+       Rt2 = buildRt(a2, t2, w2, x2, y2, z2)
+       cam2 = K2 @ Rt2
+       for p in s.prims:
+          p.drawdraw(img, s.cam, cam2)
+
+       cv2.imwrite('dbg.png', img)
+       s.writer.write(img)
+       print('.', end='')
+
 
 
     def __del__(s):
@@ -547,7 +590,14 @@ class HouseWriter():
 hw = HouseWriter()
 hw.updateRt()
 
-print('Art',end='')
+print('\nCamCam',end='')
+for a in range(30):
+   hw.pip(100,a/5,90+a,180,-500,-500,200)
+
+
+
+
+print('\nArt',end='')
 for a in range(10):
    hw.piranesi(picture=0.0, extend=1.0)   # just VP/VL
 for f in np.arange(0.0, 1.01, 0.05):
