@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 
+import copy
 import math  as m
 import numpy as np
 import cv2
@@ -29,9 +30,15 @@ def color_of(t):
    if t == 'Z': return BLU
    if t == 'D': return YLW
 
-def D2to3(xyw): # kind of actuall 3 to 4
-   x,y,w = xyw.reshape(3).tolist()
-   return np.array([[x/w],[y/w],[0],[1]])
+def D2to3(xyw): # maybe actually 3 to 4
+   if len(xyw)==2:       # 2tuple
+      x,y = xyw
+      return np.array([[x],   [y],   [0], [1]])
+   else:                 # numpy homomorphic 3x1
+      x,y,w = xyw.reshape(3).tolist()
+      return np.array([[x/w], [y/w], [0], [1]])
+
+
 
 # convert a numpy column-vector into a 2-tuple for cv2 drawing functions
 # (possibly a homomorphic 3-vector)
@@ -596,7 +603,7 @@ class HouseWriter():
 
     # render stuff into the image, and then pretend the image is in ground space
     # and view it from a perspective, so we can visualize the Perspective Pyramid
-    def pip(s, f2,a2,t2,w2,x2,y2,z2):
+    def pip(s, f2,a2,t2,w2,x2,y2,z2, ppht=0.0):
        img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
        K2  = buildK(f2, s.imgw//2, s.imgh//2)
        Rt2 = buildRt(a2, t2, w2, x2, y2, z2)
@@ -604,9 +611,12 @@ class HouseWriter():
        for p in s.prims:
           p.drawdraw(img, s.cam, cam2)
 
-       vpx = s.vps['X']; vpx.flipy(s.imgh)
-       vpy = s.vps['Y']; vpy.flipy(s.imgh)
-       vpz = s.vps['Z']; vpz.flipy(s.imgh)
+       vpx = copy.deepcopy(s.vps['X'])
+       vpy = copy.deepcopy(s.vps['Y'])
+       vpz = copy.deepcopy(s.vps['Z'])
+
+       for vp in (vpx,vpy,vpz):
+          vp.flipy(s.imgh)
 
        ImgLine(vpx.ctr,vpy.ctr,PPL,'V').drawdraw(img, s.cam, cam2)
        ImgLine(vpy.ctr,vpz.ctr,PPL,'V').drawdraw(img, s.cam, cam2)
@@ -620,6 +630,17 @@ class HouseWriter():
 
        for vp in (vpx,vpy,vpz):
           vp.flipy(s.imgh)
+
+       apex = np.array([[s.ppx], [s.imgh-s.ppy], [-ppht], [1]])
+       Line(D2to3(vpx.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
+       Line(D2to3(vpy.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
+       Line(D2to3(vpz.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
+
+
+
+
+
+
 
        cv2.imwrite('dbg.png', img)
        s.writer.write(img)
@@ -645,7 +666,7 @@ hw.updateRt()
 
 print('\nCamCam',end='')
 for a in range(30):
-   hw.pip(100,a/5,90+a,180-a,-500,-300,300)
+   hw.pip(100,a/5,90+a,180+a,-1000,-300,300, 200)
 
 
 
