@@ -148,6 +148,9 @@ class Primitive():
    def drawdraw(s, img, cam0, cam1, wid=1):
       pass
 
+   def flipy(s, imgh):
+      pass
+
 
 class ImgPoly(Primitive):
    def __init__(s, points, color, filled=True):
@@ -193,6 +196,39 @@ class ImgCircle(Primitive):
       ctr = np.array(s.ctr) / scl + off
       ictr = tuple(np.round(ctr).astype(int).tolist())
       cv2.circle(img, ictr, s.rad, s.col, -1)
+
+   def drawdraw(s, img, cam0, cam1, wid=1):
+      h = img.shape[0]
+      c = s.ctr
+      gp = np.array([[c[0]], [h-c[1]], [0], [1]])
+      ip = cam1 @ gp
+      cv2.circle(img, pt(img,ip), s.rad, s.col, -1)
+
+   def flipy(s, imgh):
+      x,y = s.ctr
+      s.ctr = (x, imgh-y)
+
+
+class ImgLine(Primitive):
+   def __init__(s, ip0, ip1, color, typ):
+      s.ip0 = ip0
+      s.ip1 = ip1
+      s.col = color
+      s.typ = typ
+
+   def drawdraw(s, img, cam0, cam1, wid=1):
+      h=img.shape[0]
+      gp0 = np.array([[s.ip0[0]], [h-s.ip0[1]], [0], [1]])
+      gp1 = np.array([[s.ip1[0]], [h-s.ip1[1]], [0], [1]])
+      ip0 = cam1 @ gp0
+      ip1 = cam1 @ gp1
+      cv2.line(img, pt(img,ip0), pt(img,ip1), s.col, wid)
+
+   def flipy(s, imgh):
+      x,y = s.ip0
+      s.ip0 = (x,imgh-y)
+      x,y = s.ip1
+      s.ip1 = (x-imgh-y)
 
 
 class Line(Primitive):
@@ -268,7 +304,7 @@ class HouseWriter():
        s.K = buildK(s.foc, s.ppx, s.ppy)
 
        s.azi = 25
-       s.tlt = 70
+       s.tlt = 60
        s.swg = 180
        s.tx = 0
        s.ty = -.9
@@ -568,6 +604,23 @@ class HouseWriter():
        for p in s.prims:
           p.drawdraw(img, s.cam, cam2)
 
+       vpx = s.vps['X']; vpx.flipy(s.imgh)
+       vpy = s.vps['Y']; vpy.flipy(s.imgh)
+       vpz = s.vps['Z']; vpz.flipy(s.imgh)
+
+       ImgLine(vpx.ctr,vpy.ctr,PPL,'V').drawdraw(img, s.cam, cam2)
+       ImgLine(vpy.ctr,vpz.ctr,PPL,'V').drawdraw(img, s.cam, cam2)
+       ImgLine(vpz.ctr,vpx.ctr,PPL,'V').drawdraw(img, s.cam, cam2)
+
+       for vp in (vpx,vpy,vpz):
+          vp.drawdraw(img, s.cam, cam2)
+
+       pp = ImgCircle((s.ppx, s.ppy), 10, PPL)
+       pp.drawdraw(img, s.cam, cam2)
+
+       for vp in (vpx,vpy,vpz):
+          vp.flipy(s.imgh)
+
        cv2.imwrite('dbg.png', img)
        s.writer.write(img)
        print('.', end='')
@@ -592,7 +645,7 @@ hw.updateRt()
 
 print('\nCamCam',end='')
 for a in range(30):
-   hw.pip(100,a/5,90+a,180,-500,-500,200)
+   hw.pip(100,a/5,90+a,180-a,-500,-300,300)
 
 
 
