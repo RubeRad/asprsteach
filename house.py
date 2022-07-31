@@ -81,9 +81,13 @@ def mark_origin(img, cam):
     cv2.circle(img, pt(img,c), 3, (255,255,255))
 
 def project_gline(img, cam, gp0, gp1, color, wid=2, scl=1.0):
-    ip0 = cam @ gp0
+    ip0 = cam @ gp0   # project into the image
     ip1 = cam @ gp1
-    cv2.line(img, pt(img,ip0,scl=scl), pt(img,ip1,scl=scl), color, wid)
+    #print('ip1 is',ip1)
+    ip00 = pt(img,ip0,scl=scl) # take care of homomorphism, yflip, scale, and rounding
+    ip11 = pt(img,ip1,scl=scl)
+    #print('ip11 is',ip11)
+    cv2.line(img, ip00, ip11, color, wid)
 
 
 
@@ -625,16 +629,19 @@ class HouseWriter():
        for vp in (vpx,vpy,vpz):
           vp.drawdraw(img, s.cam, cam2)
 
-       pp = ImgCircle((s.ppx, s.ppy), 10, PPL)
+       pp = ImgCircle((s.ppx, s.ppy), 3, PPL)
        pp.drawdraw(img, s.cam, cam2)
 
        for vp in (vpx,vpy,vpz):
           vp.flipy(s.imgh)
 
        apex = np.array([[s.ppx], [s.imgh-s.ppy], [-ppht], [1]])
+
        Line(D2to3(vpx.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
        Line(D2to3(vpy.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
        Line(D2to3(vpz.ctr), apex, PPL, 'P').draw(img, cam2, wid=3)
+       aa = pt(img, cam2 @ apex, flipy=False)
+       ImgCircle(aa,5,PPL).draw(img,cam2)
 
 
 
@@ -665,8 +672,22 @@ hw = HouseWriter()
 hw.updateRt()
 
 print('\nCamCam',end='')
+x2 = -hw.imgw / 2
+y2 = -hw.imgh / 2
 for a in range(30):
-   hw.pip(100,a/5,90+a,180+a,-1000,-300,300, 200)
+   hw.pip(300,0,90,180, x2,y2,600, 0)
+
+for a in range(30):
+   hw.pip(300,0,90+a,180, x2,y2,600, 0)
+
+for a in range(30):
+   hw.pip(300,a,120,180, x2,y2,600+a*5, a*40)
+
+for a in np.arange(1200,299,-50):
+   hw.pip(300,30,120,180, x2,y2,750, a)
+
+
+
 
 
 
