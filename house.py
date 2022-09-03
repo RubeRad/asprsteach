@@ -386,6 +386,8 @@ class HouseWriter():
        ctrx  = ppx if ppx is not None else s.ppx; s.ppx = ctrx
        ctry  = ppy if ppy is not None else s.ppy; s.ppy = ctry
        s.K = buildK(focal, ctrx, ctry)
+       s.cam = s.K @ s.Rt
+       s.updateVP()
        return s.K
     
     def updateRt(s, a=None, t=None, w=None, x=None, y=None, z=None):
@@ -396,6 +398,8 @@ class HouseWriter():
        posy = y if y is not None else s.ty;  s.ty  = posy
        posz = z if z is not None else s.tz;  s.tz  = posz
        s.Rt = buildRt(azim, tilt, swng, posx, posy, posz)
+       s.cam = s.K @ s.Rt
+       s.updateVP()
        return s.Rt
 
     def project(s, gp, flip=False):
@@ -671,24 +675,6 @@ class HouseWriter():
 hw = HouseWriter()
 hw.updateRt()
 
-print('\nCamCam',end='')
-x2 = -hw.imgw / 2
-y2 = -hw.imgh / 2
-for a in range(30):
-   hw.pip(300,0,90,180, x2,y2,600, 0)
-
-for a in range(30):
-   hw.pip(300,0,90+a,180, x2,y2,600, 0)
-
-for a in range(30):
-   hw.pip(300,a,120,180, x2,y2,600+a*5, a*40)
-
-for a in np.arange(1200,299,-50):
-   hw.pip(300,30,120,180, x2,y2,750, a)
-
-
-
-
 
 
 
@@ -706,11 +692,11 @@ for a in range(10):
    hw.piranesi(extend=0.0, wid=0)       # hold just the picture
 
 
-print('\nStill',end='')
+print('\nThis is a house',end='')
 for a in range(30):
    hw.house()
 
-print('\nFats',end='')
+print('\nXYZ',end='')
 for fat_ax in ['X','Z','Y','D']:
    for a in range(15):
       hw.house(fat=fat_ax)
@@ -727,7 +713,7 @@ print('\nTriangle', end='')
 for e in np.arange(0.0, 1.01, 0.05):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=e, fat=4)
 
-print('\nBisectors', end='')
+print('\nHeights to center', end='')
 for e in np.arange(0.0, 1.0, 0.05):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=e, fat=4)
 for a in range(10):
@@ -737,11 +723,122 @@ for a in range(10):
 for a in range(10):
    hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPP=True)
 
-print('\nFan', end='')
+print('\nPP Fan', end='')
 for e in np.arange(0.0, 1.01, 0.02):
    hw.fan(e)
-for f in np.arange(0.25,0.75,0.02):
+for a in range(30):
+   hw.fan(1.0)
+
+
+print('\nLooks like flat plane',end='')
+x2 = -hw.imgw / 2
+y2 = -hw.imgh / 2
+for a in range(30):
+   hw.pip(300,0,90,180, x2,y2,600, 500)
+
+print('\nTilt to see pyramid',end='')
+for a in range(25):
+   hw.pip(300,a,90+a,180, x2,y2,600+3*a, 500)
+
+# Hold this perspective
+a2=25
+t2=115
+z2=675
+
+print('\nNot too pointy',end='')
+for a in range(30):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 500+30*a)
+for a in range(30):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 500+30*(30-a))
+
+print('\nNot too stubby',end='')
+for a in range(15):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 500-30*a)
+for a in range(15):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 500-30*(15-a))
+
+print('\nApex has right angles',end='')
+for a in range(30):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 500)
+
+print('\nFocal length fan',end='')
+for f in np.arange(0.75,0.25,-0.02):
    hw.fan(1.0, flen=f)
+
+print('\nZoom out', end='')
+for f in np.arange(300,100,-10):
+   hw.updateK(f, None, None)
+   hw.pip(300,a2,t2,180, x2,y2,z2, f)
+for a in range(30):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 100)
+
+print('\nZoom in', end='')
+for f in np.arange(100,700,20):
+   hw.updateK(f, None, None)
+   hw.pip(300,a2,t2,180, x2,y2,z2, f)
+for a in range(30):
+   hw.pip(300,a2,t2,180, x2,y2,z2, 700)
+
+
+
+hw.updateK(300, None, None)
+print('\nZoom in picture', end='')
+for f in np.arange(300, 700, 20):
+   hw.updateK(f, None, None)
+   hw.house()
+for a in range(30):
+   hw.house()
+
+print('\nZoom out picture', end='')
+for f in np.arange(700,99,-30):
+   hw.updateK(f, None, None)
+   hw.house()
+for a in range(30):
+   hw.house()
+
+
+
+
+print('\nPush in', end='')
+for z in np.arange(1.0, 0.59, -0.02):
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+for a in range(30):
+   hw.house()
+
+
+print('\nStepped', end='')
+steps=5
+n=10 # frames per step (per foc/z)
+f=lof=hw.foc; hif=700; df=(hif-lof)/steps/n
+z=loz=hw.tz;  hiz=1.4; dz=(hiz-loz)/steps/n
+for i in range(steps):
+   for a in range(n):
+      f += df
+      hw.updateK(f, None, None)
+      hw.house()
+   if i == 0: # short pause after the first step
+      for a in range(30):
+         hw.house()
+   for a in range(n):
+      z += dz
+      hw.updateRt(None, None, None, None, None, z)
+      hw.house()
+   if i == 0:
+      for a in range(30):
+         hw.house()
+
+
+
+print('\nHitchcock',end='')
+n = 100
+lof = 300
+loz = 0.8
+for f,z in zip(np.arange(hif,lof,(lof-hif)/n),
+               np.arange(hiz,loz,(loz-hiz)/n)):
+   hw.updateK(f,None,None)
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
 
 
 

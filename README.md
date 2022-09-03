@@ -31,27 +31,53 @@ Principal Point is where that ray hits. For a well-constructed camera,
 it's generally very near the center, but for a cropped image,
 it could be anywhere.)
 
-The three lines that intersect at the Principal Point, divide
-the triangle into three smaller triangles. The sum of the 3 angles 
-around the Principal Point is 360 degrees; and the
-tips of the triangles are 120 degrees each.
-But if we step away from the film along a perpendicular line above the
-Principal Point, those three triangles elevate to 
-become three faces of a pyramid,
-and the sum of the three angles decreases. 
+The three lines that intersect at the Principal Point appear to be in the
+same flat image plane as the Vanishing Point Triangle, separated by 120
+degrees each. But that's only because we are viewing the focal plane from
+directly above. If we look from the side, we can see that these lines
+actually form what is known as the Perspective Pyramid.
 
-At just the right the pyramid faces have 90 degrees each.
-This right pyramid is called the *Perspective Pyramid*, and its
-height is the camera's *Focal Length*.
+The lines meet at an apex directly above the Principal Point. How far above?
+Not so far that the angles at the apex are small and pointy; not so close
+to the focal plane that the angles are near 120 degrees. There is a
+just-right height at which all three faces are right triangles. That height
+is the Focal Length.
 
-A shorter Focal Length means the camera has a wide field of view,
-parallel lines are more convergent, Vanishing Points are closer in,
-so the base of the Perspective Pyramid is smaller (to go with that
-shorter Focal Length). This is also known as *zooming out*.
+A shorter Focal Length means the camera has a wide field of view.
+This is also known as *zooming out*.
+
+When shortening the focal length, parallel lines become
+*more* convergent, so Vanishing Points are closer in,
+and the base of the Perspective Pyramid is smaller (to go with that
+shorter Focal Length). 
 
 Increasing the Focal Length, or *zooming in*, narrows the field of view,
 and makes ground-parallel lines appear closer to parallel in perspective,
 which pushes the Vanishing Points out and makes the Perspective Pyramid bigger.
+
+Here's another view of zooming in, just looking at the Picture.
+In addition to the apparent size increasing, we can see the
+lines getting more parallel, and imagine those Vanishing 
+Points would be pushed way further out for a larger Pyramid
+(with a taller focal length)
+
+And then zooming out, the object appears smaller, and the
+lines grow so convergent it looks more distorted.
+
+If you are zoomed out with a short focal length and the 
+scene looks really small, another way to make the scene
+bigger instead of zooming in, is to move the camera closer.
+But you can see that close range, combined with the short
+focal length, results in a really distorted perspective.
+
+We can zoom in a little bit, to make it look bigger, and then
+move out a little bit, to make it smaller, and repeat in
+alternating steps.
+
+Or, starting from long range and long focal length, we could
+carefully decrease both simultaneously. This is the camera
+effect that Alfred Hitchcock invented to express 
+dizziness in his masterpiece *Vertigo*.
 
 So far, we have been looking at the house in *3 point perspective*, 
 which is called that because all three ground directions converge to 
