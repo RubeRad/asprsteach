@@ -425,7 +425,7 @@ class HouseWriter():
              if p.typ==t:
                 p.vp = vp
 
-    def piranesi(s, picture=1.0, extend=1.0, wid=4):
+    def piranesi(s, picture=1.0, extend=1.0, wid=4, caption=False):
 
        img = np.zeros((s.imgh,    s.imgw, 3), np.uint8)
 
@@ -455,9 +455,32 @@ class HouseWriter():
              else:            l.extendToward(vpg,extend)
              l.draw2D(img,s.pscl,ow,oh,wid)
 
+       if caption:
+          cv2.putText(img, 'Piranesi, "Views of Rome", metmuseum.org/art/collection/search/406668'"",
+                   (20, s.imgh - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, RED, 1)
+
        #cv2.imwrite('dbg.png', img)
        s.writer.write(img)
        print('.',end='')
+
+    def image(s, caption):
+       img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
+       pic = s.pimg
+       ph,pw = pic.shape[0:2]
+       # scale it up
+       fact = s.imgh/ph
+       pic2 = cv2.resize(pic, (int(fact*pw),int(fact*ph)))
+       ph,pw = pic2.shape[0:2]
+       offx = (s.imgw-pw)//2
+       img[0:ph, offx:offx+pw] = pic2
+
+       cv2.putText(img, caption, (20,s.imgh-20), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
+                   RED, 2)
+
+       cv2.imwrite('dbg.png', img)
+       print('.', end='')
+
+       s.writer.write(img)
 
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
@@ -690,7 +713,8 @@ for w in (4,3,2,1):
       hw.piranesi(extend=0.0, wid=w)  # thin the vanishing lines
 for a in range(10):
    hw.piranesi(extend=0.0, wid=0)       # hold just the picture
-
+for a in range(10):
+   hw.piranesi(extend=0.0, wid=0, caption=True) # with URL
 
 print('\nThis is a house',end='')
 for a in range(30):
@@ -760,6 +784,16 @@ for a in range(15):
 print('\nApex has right angles',end='')
 for a in range(30):
    hw.pip(300,a2,t2,180, x2,y2,z2, 500)
+
+print('\nPaper', end='')
+hw.pimg = cv2.imread('isprsfig.png')
+for a in range(30):
+   hw.image('Settergren, "Resection and Monte Carlo Covariance...", ISPRS 2020')
+hw.pimg = cv2.imread('isprsmat.png')
+for a in range(30):
+   hw.image('Settergren, "Resection and Monte Carlo Covariance...", ISPRS 2020')
+
+
 
 print('\nFocal length fan',end='')
 for f in np.arange(0.75,0.25,-0.02):
@@ -840,6 +874,15 @@ for f,z in zip(np.arange(hif,lof,(lof-hif)/n),
    hw.updateRt(None, None, None, None, None, z)
    hw.house()
 
+print('\nVertigo', end='')
+hw.pimg = cv2.imread('vertigo.jpg')
+for a in range(30):
+   hw.image('')
+
+print('\nDog', end='')
+hw.pimg = cv2.imread('dognose.png')
+for a in range(30):
+   hw.image('https://www.instagram.com/p/BSTPLebD7cp')
 
 
 hw.writer.release()

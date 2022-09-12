@@ -43,6 +43,14 @@ to the focal plane that the angles are near 120 degrees. There is a
 just-right height at which all three faces are right triangles. That height
 is the Focal Length.
 
+Now that we have the Focal Length, that is the last piece of the puzzle, 
+and we can assemble a mathematical model of the camera that
+makes projection of 3D ground coordinates into 2D pixels as
+easy as matrix multiplication.
+
+But that math is not the story I want to tell here; I want to
+help give a concrete understanding of Focal Length.
+
 A shorter Focal Length means the camera has a wide field of view.
 This is also known as *zooming out*.
 
@@ -79,18 +87,8 @@ carefully decrease both simultaneously. This is the camera
 effect that Alfred Hitchcock invented to express 
 dizziness in his masterpiece *Vertigo*.
 
-So far, we have been looking at the house in *3 point perspective*, 
-which is called that because all three ground directions converge to 
-Vanishing Points, because our Principal Ray is not parallel or 
-perpendicular to any of them; we are looking NorthEast, 
-and diagonally downward.
-
-But as the camera shifts, say, towards due North, which is 
-perpendicular to East, the Eastbound ground lines start to lose 
-their convergence. Their vanishing point moves arbitrarily 
-far away from the scene, and the Perspective Pyramid degenerates
-into an infinitely long A-frame, or a *Perspective Tent*. 
-
-
+And this is why humanity has invented the 'selfie stick',
+because we quickly discovered that photos with close range
+and short focal length, distort the size of your nose!
 
  
