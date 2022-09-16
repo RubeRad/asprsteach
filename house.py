@@ -306,8 +306,10 @@ class HouseWriter():
     def __init__(s, fname='house.avi', width=1920, height=1080):
        s.imgw = width
        s.imgh = height
+       s.hz = 15
        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-       s.writer = cv2.VideoWriter(fname, fourcc, 15, (width,height))
+       s.writer = cv2.VideoWriter(fname, fourcc, s.hz, (width,height))
+       s.nframes = 0
 
        s.foc = 500
        s.ppx = s.imgw//2
@@ -380,6 +382,17 @@ class HouseWriter():
        ph, pw = big.shape[0:2]
        s.pimg = cv2.resize(big, (int(pw / s.pscl), int(ph / s.pscl)))
 
+    def addFrame(s, img):
+       #cv2.imwrite('dbg.png', img)
+       s.writer.write(img)
+       s.nframes += 1
+       print('.',end='')
+
+    def length(s):
+       return s.nframes / s.hz
+
+    def value_range(s, start, stop, seconds):
+       return np.arange(start, stop, (stop-start)/(s.hz*seconds))
 
     def updateK(s, f, ppx, ppy):
        focal = f   if f   is not None else s.foc; s.foc = focal
@@ -459,9 +472,8 @@ class HouseWriter():
           cv2.putText(img, 'Piranesi, "Views of Rome", metmuseum.org/art/collection/search/406668'"",
                    (20, s.imgh - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, RED, 1)
 
-       #cv2.imwrite('dbg.png', img)
-       s.writer.write(img)
-       print('.',end='')
+       s.addFrame(img)
+
 
     def image(s, caption):
        img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
@@ -477,10 +489,7 @@ class HouseWriter():
        cv2.putText(img, caption, (20,s.imgh-20), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
                    RED, 2)
 
-       cv2.imwrite('dbg.png', img)
-       print('.', end='')
-
-       s.writer.write(img)
+       s.addFrame(img)
 
 
     def house(s, image_in=None, fat=None, extend=0, scale=1.0,
@@ -499,7 +508,7 @@ class HouseWriter():
           s.updateVP()
 
        for p in s.prims:
-          w = 4 if fat is not None and fat==p.typ else 2
+          w = 6 if (fat is not None and fat==p.typ) else 2
           p.draw(img, s.cam, w, extend, scale)
 
        if drawVT or drawPB:
@@ -554,12 +563,11 @@ class HouseWriter():
        #mark_origin(img, s.cam)
        if dump:   cv2.imwrite('dbg.png', img)
        if show:   cv2.imshow('House', img)
-       if write:  s.writer.write(img)
 
-       print('.', end='')
+       s.addFrame(img)
 
 
-    def fan(s, extend, flen=0.5):
+    def fan(s, extend, flen=0.5, highlight_ray=False, highlight_point=False):
        img = np.zeros((s.imgh, s.imgw, 3), np.uint8)
        w = s.imgw
        h = s.imgh
@@ -604,10 +612,11 @@ class HouseWriter():
           q1 = f + r1*v
           q2 = f + r2*v
           q3 = q2 + extend*(q1-q2)
-          if extend==1.0 and i==0:
+          if extend==1.0 and i==0 and highlight_ray:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), PPL, 2)
-             cv2.circle(img, pt(img,ppt,flipy=False), 10, PPL, -1)
-             cv2.circle(img, pt(img,ppt,flipy=False), 11, BLK, 1)
+             if highlight_point:
+                cv2.circle(img, pt(img,ppt,flipy=False), 10, PPL, -1)
+                cv2.circle(img, pt(img,ppt,flipy=False), 11, BLK, 1)
           else:
              cv2.line(img, pt(img,q2,flipy=False), pt(img,q3,flipy=False), WHT, 1)
 
@@ -628,8 +637,7 @@ class HouseWriter():
        cv2.line(img, (siz,h-siz),(siz,h-2*siz),GRN,2)
        cv2.line(img, (2*siz,h-siz),(2*siz,h-2*siz),GRN,2)
 
-       s.writer.write(img)
-       print('.', end='')
+       s.addFrame(img)
 
 
     # render stuff into the image, and then pretend the image is in ground space
@@ -670,15 +678,7 @@ class HouseWriter():
        aa = pt(img, cam2 @ apex, flipy=False)
        ImgCircle(aa,5,PPL).draw(img,cam2)
 
-
-
-
-
-
-
-       cv2.imwrite('dbg.png', img)
-       s.writer.write(img)
-       print('.', end='')
+       s.addFrame(img)
 
 
 
@@ -700,99 +700,154 @@ hw.updateRt()
 
 
 
-
+# 17sec for art @ 15hz = 255 frames
 print('\nArt',end='')
-for a in range(10):
+while hw.length() < 3:
    hw.piranesi(picture=0.0, extend=1.0)   # just VP/VL
-for f in np.arange(0.0, 1.01, 0.05):
+# 3s
+for f in hw.value_range(0.0, 1.0, 3):
    hw.piranesi(picture=f, extend=1.0) # fade in the picture
-for e in np.arange(1.0, -0.01, -0.05):
+# 6s
+for e in hw.value_range(1.0, 0.0, 3):
    hw.piranesi(extend=e)              # shrink the vanishing lines
+# 9s
 for w in (4,3,2,1):
-   for a in range(5):
+   for a in range(15): # 1s each
       hw.piranesi(extend=0.0, wid=w)  # thin the vanishing lines
-for a in range(10):
+# 13s
+while hw.length() < 15:
    hw.piranesi(extend=0.0, wid=0)       # hold just the picture
-for a in range(10):
+# 15s
+while hw.length() < 17:
    hw.piranesi(extend=0.0, wid=0, caption=True) # with URL
+# 17s
 
+
+# hold until 'East' at 21.5
 print('\nThis is a house',end='')
-for a in range(30):
+while hw.length()<21.5:
    hw.house()
+# 21.5s
 
 print('\nXYZ',end='')
-for fat_ax in ['X','Z','Y','D']:
-   for a in range(15):
-      hw.house(fat=fat_ax)
+while hw.length()<22.4:
+   hw.house(fat='X')
+while hw.length()<23.2:
+   hw.house(fat='Z') # lol Z is 'north' not 'up'
+while hw.length()<24.5:
+   hw.house(fat='Y')
+while hw.length()<25.3:
+   hw.house(fat='D')
+
+# 25.3s
+
+# Although the lines are truly parallel in the real world
+while hw.length()<32:
+   hw.house()
+
+
+#32s
 
 print('\nExtend',end='')
-for e in np.arange(0.0, 1.01, 0.05):
+for e in hw.value_range(0.0, 1.00, 8):
    hw.house(extend=e)
 
+#40s
+
 print('\nShrink', end='')
-for s in np.arange(1.0, 0.3, -0.05):
+for s in hw.value_range(1.0, 0.55, 7):
    hw.house(extend=1, scale=s, drawVPs=True)
 
-print('\nTriangle', end='')
-for e in np.arange(0.0, 1.01, 0.05):
-   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=e, fat=4)
+#47s
 
+while hw.length()<54:
+   hw.house(extend=1, scale=0.55, drawVPs=True)
+
+#54s
+
+
+print('\nTriangle', end='')
+for e in hw.value_range(0.0, 1.0, 2):
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=e, fat=4)
+#56s
+while hw.length()<57:
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=1.0, fat=4)
+
+# 57s
 print('\nHeights to center', end='')
-for e in np.arange(0.0, 1.0, 0.05):
-   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=e, fat=4)
-for a in range(10):
-   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1)
-for a in range(10):
-   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1, drawPP=True)
-for a in range(10):
-   hw.house(extend=1, scale=0.3, drawVPs=True, drawVT=1.0, drawPP=True)
+for e in hw.value_range(0.0, 1.0, 4):
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=1.0, drawPB=e, fat=4)
+# 61s=1:01
+while hw.length()<64.5:
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1)
+# 64.5=1:04.5
+while hw.length()<68:
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=1.0, drawPB=1.0, fat=1, drawPP=True)
+# 68s=1:08
+while hw.length()<72:
+   hw.house(extend=1, scale=0.55, drawVPs=True, drawVT=1.0, drawPP=True)
+#72s=1:12
 
 print('\nPP Fan', end='')
-for e in np.arange(0.0, 1.01, 0.02):
+for e in hw.value_range(0.0, 1.0, 6.8):
    hw.fan(e)
-for a in range(30):
-   hw.fan(1.0)
+#78.8s=1:18.8
+while hw.length()<81:
+   hw.fan(1.0, highlight_ray=True)
+#81s=1:21
+while hw.length()<89:
+   hw.fan(1.0, highlight_ray=True, highlight_point=True)
+#89s=1:29
 
 
 print('\nLooks like flat plane',end='')
 x2 = -hw.imgw / 2
 y2 = -hw.imgh / 2
-for a in range(30):
+while hw.length()<105:
    hw.pip(300,0,90,180, x2,y2,600, 500)
 
+# 1:45=105s
 print('\nTilt to see pyramid',end='')
-for a in range(25):
+for a in hw.value_range(0.0,25.0, 3):
    hw.pip(300,a,90+a,180, x2,y2,600+3*a, 500)
-
+# 1:48=108s
 # Hold this perspective
+while hw.length()<120:
+   hw.pip(300,25,90+25,180, x2,y2,600+3*25,500)
+#2:00=120s
+
+
 a2=25
 t2=115
 z2=675
-
 print('\nNot too pointy',end='')
-for a in range(30):
-   hw.pip(300,a2,t2,180, x2,y2,z2, 500+30*a)
-for a in range(30):
-   hw.pip(300,a2,t2,180, x2,y2,z2, 500+30*(30-a))
+for a in hw.value_range(500,1200,4):
+   hw.pip(300,a2,t2,180, x2,y2,z2, a)
+#2:04=124s
 
 print('\nNot too stubby',end='')
-for a in range(15):
-   hw.pip(300,a2,t2,180, x2,y2,z2, 500-30*a)
-for a in range(15):
-   hw.pip(300,a2,t2,180, x2,y2,z2, 500-30*(15-a))
+for a in hw.value_range(1200,100,4):
+   hw.pip(300,a2,t2,180, x2,y2,z2, a)
+#2:08=128s
+
+for a in hw.value_range(100,500,4):
+   hw.pip(300,a2,t2,180, x2,y2,z2, a)
+#2:12=132s
 
 print('\nApex has right angles',end='')
-for a in range(30):
+while hw.length()<140.7:
    hw.pip(300,a2,t2,180, x2,y2,z2, 500)
+# 140.7s=2:20.7
 
 print('\nPaper', end='')
 hw.pimg = cv2.imread('isprsfig.png')
-for a in range(30):
+while hw.length()<148.3:
    hw.image('Settergren, "Resection and Monte Carlo Covariance...", ISPRS 2020')
+# 148.3s=2:28.3
 hw.pimg = cv2.imread('isprsmat.png')
-for a in range(30):
+while hw.length()<156.5:
    hw.image('Settergren, "Resection and Monte Carlo Covariance...", ISPRS 2020')
-
+# 2:36.5=156.5
 
 
 print('\nFocal length fan',end='')
