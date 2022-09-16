@@ -883,6 +883,10 @@ print('\nDog', end='')
 hw.pimg = cv2.imread('dognose.png')
 for a in range(30):
    hw.image('https://www.instagram.com/p/BSTPLebD7cp')
+for a in range(30):
+   hw.image('https://www.instagram.com/p/BSTPLebD7cp'+
+            '                                       '+
+            'github.com/RubeRad/asprsteach')
 
 
 hw.writer.release()

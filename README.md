@@ -6,8 +6,9 @@ Code for making visuals for 2022 ASPRS photogrammetry-teaching competition
 For hundreds of years, artists have used the principles of 
 vanishing points to create realistic 3D perspective. 
 Today we are going in the opposite direction; 
-using vanishing points observable in photographs
-to *discover* the perspective used by the camera.
+we will start with a perspective image, and discover
+the vanishing points, in order to understand 
+the perspective used by the camera.
 
 This is a house. We can assume it's perpendicular edges
 are aligned with the directions *East*, *North*, and *Up*. 
@@ -20,9 +21,13 @@ direction converge are called *Vanishing Points*, and the closer
 lines are to appearing parallel, the further away the Vanishing Points
 are, often far beyond the edges of the image.
 
-This image has three vanishing points, and any three points form a triangle.
+This image has three vanishing points
+(which is what we call 'Three Point Perspective'), 
+and any three points form a triangle.
 If we construct a perpendicular line from each side across to the opposite
-vertex, all three lines intersect at the *center* of the triangle.
+vertex, all three lines intersect, and their intersection is 
+known as the *center* of the triangle.
+(This works for any triangle, try it!)
 That center happens to be the *Principal Point* of the camera.
 
 (Of all the light rays that fan into the camera, the *Principal Ray* 
@@ -33,15 +38,17 @@ it could be anywhere.)
 
 The three lines that intersect at the Principal Point appear to be in the
 same flat image plane as the Vanishing Point Triangle, separated by 120
-degrees each. But that's only because we are viewing the focal plane from
-directly above. If we look from the side, we can see that these lines
-actually form what is known as the Perspective Pyramid.
+degrees each (because all the way around is 360). 
+But that's only because we are viewing the focal plane from
+directly above. If we can tilt our view to see it from the side, 
+we can see that these lines
+actually define a pyramid, which is known as the *Perspective Pyramid*.
 
 The lines meet at an apex directly above the Principal Point. How far above?
 Not so far that the angles at the apex are small and pointy; not so close
-to the focal plane that the angles are near 120 degrees. There is a
-just-right height at which all three faces are right triangles. That height
-is the Focal Length.
+to the focal plane that the angles are near 120 degrees
+There is a just-right height at which all three faces are right triangles. 
+That height is the Focal Length.
 
 Now that we have the Focal Length, that is the last piece of the puzzle, 
 and we can assemble a mathematical model of the camera that
@@ -61,34 +68,44 @@ shorter Focal Length).
 
 Increasing the Focal Length, or *zooming in*, narrows the field of view,
 and makes ground-parallel lines appear closer to parallel in perspective,
-which pushes the Vanishing Points out and makes the Perspective Pyramid bigger.
+which pushes the Vanishing Points out and makes the Perspective Pyramid 
+wider and taller.
 
 Here's another view of zooming in, just looking at the Picture.
-In addition to the apparent size increasing, we can see the
-lines getting more parallel, and imagine those Vanishing 
-Points would be pushed way further out for a larger Pyramid
-(with a taller focal length)
+In addition to the apparent size of the house increasing, we can see the
+lines getting more parallel. Imagine how those Vanishing 
+Points are being pushed way further out for a larger Pyramid
+(with a taller focal length).
 
-And then zooming out, the object appears smaller, and the
-lines grow so convergent it looks more distorted.
+And then zooming out, the object appears smaller, and lines that are
+parallel in reality, appear so convergent that the house
+looks quite distorted.
 
 If you are zoomed out with a short focal length and the 
-scene looks really small, another way to make the scene
-bigger instead of zooming in, is to move the camera closer.
-But you can see that close range, combined with the short
-focal length, results in a really distorted perspective.
+scene looks really small, you could make the house look 
+bigger by zooming in, but another way is just to move the camera closer.
+However, you can see that close range, combined with the short
+focal length, results in a *really* distorted perspective.
 
 We can zoom in a little bit, to make it look bigger, and then
 move out a little bit, to make it smaller, and repeat in
-alternating steps.
+alternating steps:
+* zoom in; move out
+* zoom in; move out
+* zoom in; move out
+* zoom in; move out
 
 Or, starting from long range and long focal length, we could
-carefully decrease both simultaneously. This is the camera
+carefully decrease both focal length and range simultaneously.
+This is the camera
 effect that Alfred Hitchcock invented to express 
 dizziness in his masterpiece *Vertigo*.
 
-And this is why humanity has invented the 'selfie stick',
-because we quickly discovered that photos with close range
+And this is also why humanity has invented the 'selfie stick',
+because we quickly discovered that smartphone photos with close range
 and short focal length, distort the size of your nose!
+
+I hope you enjoyed this explanation. If you want to see the python
+code that made the animation, visit my github page.
 
  
