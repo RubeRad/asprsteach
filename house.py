@@ -851,97 +851,159 @@ while hw.length()<156.5:
 
 
 print('\nFocal length fan',end='')
-for f in np.arange(0.75,0.25,-0.02):
+for f in hw.value_range(0.75,0.25,6.5):
    hw.fan(1.0, flen=f)
+# 2:43=163s
 
 print('\nZoom out', end='')
-for f in np.arange(300,100,-10):
+for f in hw.value_range(300,100,12):
    hw.updateK(f, None, None)
    hw.pip(300,a2,t2,180, x2,y2,z2, f)
-for a in range(30):
-   hw.pip(300,a2,t2,180, x2,y2,z2, 100)
+# 2:55=175s
 
 print('\nZoom in', end='')
-for f in np.arange(100,700,20):
+for f in hw.value_range(100,700,13):
    hw.updateK(f, None, None)
    hw.pip(300,a2,t2,180, x2,y2,z2, f)
-for a in range(30):
+# 3:08=188s
+while hw.length()<190:
    hw.pip(300,a2,t2,180, x2,y2,z2, 700)
-
+# 3:10=190s
 
 
 hw.updateK(300, None, None)
 print('\nZoom in picture', end='')
-for f in np.arange(300, 700, 20):
+for f in hw.value_range(300, 700, 14):
    hw.updateK(f, None, None)
    hw.house()
-for a in range(30):
+# 3:24=204s
+while hw.length()<207:
    hw.house()
+# 207s=3:27
 
 print('\nZoom out picture', end='')
-for f in np.arange(700,99,-30):
+for f in hw.value_range(700,100,9):
    hw.updateK(f, None, None)
    hw.house()
-for a in range(30):
+#216s=3:36
+while hw.length()<224.8:
    hw.house()
-
+#3:44.8=224.8s
 
 
 
 print('\nPush in', end='')
-for z in np.arange(1.0, 0.59, -0.02):
+for z in hw.value_range(1.0, 0.6, 7):
    hw.updateRt(None, None, None, None, None, z)
    hw.house()
-for a in range(30):
+# 231.8s=3:51.8
+while hw.length()<235.4:
    hw.house()
-
+# 3:55.4=235.4
 
 print('\nStepped', end='')
-steps=5
-n=10 # frames per step (per foc/z)
-f=lof=hw.foc; hif=700; df=(hif-lof)/steps/n
-z=loz=hw.tz;  hiz=1.4; dz=(hiz-loz)/steps/n
-for i in range(steps):
-   for a in range(n):
-      f += df
-      hw.updateK(f, None, None)
-      hw.house()
-   if i == 0: # short pause after the first step
-      for a in range(30):
-         hw.house()
-   for a in range(n):
-      z += dz
-      hw.updateRt(None, None, None, None, None, z)
-      hw.house()
-   if i == 0:
-      for a in range(30):
-         hw.house()
+for f in hw.value_range(hw.foc,220,2): # zoom in
+   hw.updateK(f, None, None)
+   hw.house()
+# 3:57.4=237.4
+while hw.length()<238.7:               # pause
+   hw.house()
+#3:58.7=238.7
+
+for z in hw.value_range(hw.tz, .76, 2): # move out
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+# 4:00.7=240.7
+while hw.length()<243.7:               # pause
+   hw.house()
+# 4:03.7=243.7
+
+# step 2
+for f in hw.value_range(220,340,.9): # zoom in
+   hw.updateK(f, None, None)
+   hw.house()
+# 4:04.6=244.6
+for z in hw.value_range(.76, .92, 1.1): # move out
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+# 4:05.7=245.7
+
+# step 3
+for f in hw.value_range(340,460,1): # zoom in
+   hw.updateK(f, None, None)
+   hw.house()
+# 4:06.7=246.7
+for z in hw.value_range(.92, 1.08, 1): # move out
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+# 4:07.7=247.7
+
+# step 4
+for f in hw.value_range(460,580,1): # zoom in
+   hw.updateK(f, None, None)
+   hw.house()
+# 4:08.7=248.7
+for z in hw.value_range(1.08, 1.24, 1): # move out
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+# 4:09.7=249.7
+
+# step 5
+for f in hw.value_range(580,700,1): # zoom in
+   hw.updateK(f, None, None)
+   hw.house()
+# 4:10.7=250.7
+for z in hw.value_range(1.24, 1.4, 2): # move out
+   hw.updateRt(None, None, None, None, None, z)
+   hw.house()
+# 4:11.7=251.7
+
+
+while hw.length()<257:
+   hw.house()
+
+# 4:17=257
+
+
 
 
 
 print('\nHitchcock',end='')
-n = 100
+hif = hw.foc
+hiz = hw.tz
 lof = 300
 loz = 0.8
-for f,z in zip(np.arange(hif,lof,(lof-hif)/n),
-               np.arange(hiz,loz,(loz-hiz)/n)):
+for f,z in zip(hw.value_range(hif,lof,7),
+               hw.value_range(hiz,loz,7)):
    hw.updateK(f,None,None)
    hw.updateRt(None, None, None, None, None, z)
    hw.house()
+# 4:24=264s
+while hw.length()<265:
+   hw.house()
+# 4:25=265s
 
 print('\nVertigo', end='')
 hw.pimg = cv2.imread('vertigo.jpg')
-for a in range(30):
+while hw.length()<268.4:
    hw.image('')
+# 4:28.4=268.4s
+
 
 print('\nDog', end='')
 hw.pimg = cv2.imread('dognose.png')
-for a in range(30):
+while hw.length()<279:
    hw.image('https://www.instagram.com/p/BSTPLebD7cp')
-for a in range(30):
+# 4:39=279s
+while hw.length()<289:
    hw.image('https://www.instagram.com/p/BSTPLebD7cp'+
             '                                       '+
             'github.com/RubeRad/asprsteach')
+# 4:49=279s
+# fin
 
 
 hw.writer.release()
+
+# to combine the narration.mp3 into the silent avi
+# ffmpeg -i house.avi -i narration.mp3 -c:v libx264 -c:a mp3 house.mp4
